@@ -3,11 +3,11 @@ import {
   useCrossmintEvents,
 } from '@crossmint/client-sdk-react-ui'
 import { CheckoutService } from './../checkoutMachine'
-import { Fragment, useCallback, useEffect, useState } from 'react'
+import { Fragment, useCallback, useState } from 'react'
 import { useSelector } from '@xstate/react'
 import { PoweredByUnlock } from '../../PoweredByUnlock'
 import { Pricing } from '../../Lock'
-import { getReferrer, lockTickerSymbol } from '~/utils/checkoutLockUtils'
+import { lockTickerSymbol } from '~/utils/checkoutLockUtils'
 import { Lock } from '~/unlockTypes'
 import { RiErrorWarningFill as ErrorIcon } from 'react-icons/ri'
 import { usePricing } from '~/hooks/usePricing'
@@ -19,6 +19,7 @@ import { TransactionAnimation } from '../../Shell'
 import { config } from '~/config/app'
 import { useGetTokenIdForOwner } from '~/hooks/useGetTokenIdForOwner'
 import Disconnect from '../Disconnect'
+import { useGetReferrers } from '~/hooks/useGetReferrers'
 
 interface Props {
   checkoutService: CheckoutService
@@ -46,7 +47,6 @@ export function ConfirmCrossmint({
     useSelector(checkoutService, (state) => state.context)
   const [isConfirming, setIsConfirming] = useState(false)
   const [quote, setQuote] = useState<CrossmintQuote | null>(null)
-  const [referrers, setReferrers] = useState<string[]>([])
   const crossmintEnv = config.env === 'prod' ? 'production' : 'staging'
 
   const {
@@ -73,17 +73,11 @@ export function ConfirmCrossmint({
     environment: crossmintEnv,
   })
 
-  useEffect(() => {
-    const fetchReferrers = async () => {
-      const referrers: string[] = await Promise.all(
-        recipients.map(async (recipient) => {
-          return await getReferrer(recipient, paywallConfig, lock!.address)
-        })
-      )
-      setReferrers(referrers)
-    }
-    fetchReferrers()
-  }, [lock, paywallConfig, recipients])
+  const { data: referrers } = useGetReferrers(
+    recipients,
+    paywallConfig,
+    lock!.address
+  )
 
   // Handling payment events
   const onCrossmintPaymentEvent = useCallback(

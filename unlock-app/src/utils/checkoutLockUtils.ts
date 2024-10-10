@@ -148,40 +148,68 @@ export const inClaimDisallowList = (address: string) => {
   return claimDisallowList.indexOf(address) > -1
 }
 
-/**
- * Helper function that returns a valid referrer address
- * @param recipient
- * @param paywallConfig
- * @param lockAddress
- * @returns
- */
-export const getReferrer = async (
-  recipient: string,
+export const shouldReferrerResolveForENS = (
   paywallConfig?: PaywallConfigType,
   lockAddress?: string
-): Promise<string> => {
+) => {
   if (paywallConfig) {
     if (
       lockAddress &&
       paywallConfig.locks[lockAddress] &&
       isAccount(paywallConfig.locks[lockAddress].referrer)
     ) {
-      return paywallConfig.locks[lockAddress].referrer!
-    }
-    if (paywallConfig.referrer && isAccount(paywallConfig.referrer)) {
-      return paywallConfig.referrer
+      return false
     }
     if (paywallConfig.referrer && isEns(paywallConfig.referrer)) {
-      let response
+      return true
+    }
+  }
+  return false
+}
+
+/**
+ * Helper function that returns a valid referrer addresses
+ * @param recipients
+ * @param paywallConfig
+ * @param lockAddress
+ * @returns
+ */
+export const getReferrers = async (
+  recipients: string[],
+  paywallConfig?: PaywallConfigType,
+  lockAddress?: string
+): Promise<string[]> => {
+  const isReferrerAddressEns = shouldReferrerResolveForENS(
+    paywallConfig,
+    lockAddress
+  )
+  if (isReferrerAddressEns) {
+    if (isReferrerAddressEns && paywallConfig && paywallConfig.referrer) {
       try {
-        response = await onResolveName(paywallConfig.referrer)
-        if (response && response.address) {
-          return response.address
+        // paywallConfig.referrer is always a string if isReferrerAddressEns is true
+        const response = await onResolveName(paywallConfig.referrer)
+        if (response && response.address && response.address !== null) {
+          return recipients.map(() => response.address as string)
         }
       } catch (e) {
         console.log('Error resolving referrer ENS', e)
       }
     }
   }
-  return recipient
+
+  return recipients.map((recipient) => {
+    if (paywallConfig) {
+      if (
+        lockAddress &&
+        paywallConfig.locks[lockAddress] &&
+        isAccount(paywallConfig.locks[lockAddress].referrer)
+      ) {
+        return paywallConfig.locks[lockAddress].referrer!
+      }
+      if (paywallConfig.referrer && isAccount(paywallConfig.referrer)) {
+        return paywallConfig.referrer
+      }
+    }
+    return recipient
+  })
 }
