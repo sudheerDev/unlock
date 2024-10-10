@@ -18,7 +18,6 @@ export const gnosis: NetworkConfig = {
       transaction: (hash) => `https://gnosisscan.io/tx/${hash}`,
     },
   },
-  faucet: 'https://gnosisfaucet.com/',
   featured: true,
   governanceBridge: {
     connext: '0x5bB83e95f63217CDa6aE3D181BA580Ef377D2109',
@@ -72,6 +71,7 @@ export const gnosis: NetworkConfig = {
   id: 100,
   isTestNetwork: false,
   keyManagerAddress: '0xBa81C9379AC1221BF8C100800dD0B0b0b048ba14',
+  kickbackAddress: '0x247a38358c4d99A29091C1cEadfb8a54B783D438',
   maxFreeClaimCost: 100,
   multisig: '0xfAC611a5b5a578628C28F77cEBDDB8C6159Ae79D',
   name: 'Gnosis Chain',
@@ -94,8 +94,8 @@ export const gnosis: NetworkConfig = {
   startBlock: 19338700,
   // This is used in llama pricing API so can't rename.
   subgraph: {
-    endpoint:
-      'https://api.studio.thegraph.com/query/65299/unlock-protocol-gnosis/version/latest',
+    endpoint: 'https://subgraph.unlock-protocol.com/100',
+    graphId: '2Pr7V4721iZj5hRgLmuganYCTRee6fqqfftLCFCd72wG',
     networkName: 'gnosis',
     studioName: 'unlock-protocol-gnosis',
   },
@@ -113,6 +113,12 @@ export const gnosis: NetworkConfig = {
       featured: true,
       name: 'Tether USD on xDai',
       symbol: 'USDT',
+    },
+    {
+      address: '0x8C84142c4a716a16a89d0e61707164d6107A9811',
+      decimals: 18,
+      name: 'UDT from Ethereum',
+      symbol: 'UDT',
     },
   ],
   unlockAddress: '0x1bc53f4303c711cc693F6Ec3477B83703DcB317f',

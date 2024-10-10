@@ -1,11 +1,5 @@
 import React, { useCallback, useState } from 'react'
-import {
-  Button,
-  Input,
-  Select,
-  ToggleSwitch,
-  CurrencyHint,
-} from '@unlock-protocol/ui'
+import { Button, Input, Select, ToggleSwitch } from '@unlock-protocol/ui'
 import { Token } from '@unlock-protocol/types'
 import { useForm, useWatch } from 'react-hook-form'
 import { useAuth } from '~/contexts/AuthenticationContext'
@@ -19,6 +13,7 @@ import Link from 'next/link'
 import { networks } from '@unlock-protocol/networks'
 import { useAvailableNetworks } from '~/utils/networks'
 import { SelectToken } from './SelectToken'
+import { ProtocolFee } from './ProtocolFee'
 
 export interface LockFormProps {
   name: string
@@ -41,17 +36,18 @@ interface CreateLockFormProps {
   defaultOptions?: any
 }
 
-export const networkDescription = (network: number) => {
-  const { description, url, faucet, nativeCurrency } = networks[network!]
+export const NetworkDescription = ({ network }: { network: number }) => {
+  const { description, url, faucets, nativeCurrency } = networks[network!]
   return (
-    <>
+    <div>
       {description}{' '}
       {url && (
         <>
+          (
           <Link className="underline" href={url} target="_blank">
             Learn more
           </Link>
-          .
+          ).{' '}
         </>
       )}
       {network === 1 && (
@@ -60,18 +56,25 @@ export const networkDescription = (network: number) => {
           Mainnet.
         </p>
       )}
-      {faucet && (
-        <>
-          {' '}
-          <br />
-          Need some {nativeCurrency.name} to pay for gas?{' '}
-          <Link className="underline" href={faucet} target="_blank">
-            Try this faucet
-          </Link>
-          .
-        </>
+      {faucets && (
+        <div className="mt-1">
+          Need some {nativeCurrency.name} to pay for gas?
+          {faucets.length > 1
+            ? ' Try one of these faucets: '
+            : ' Try this faucet: '}
+          {faucets.map((faucet: any, index) => {
+            return (
+              <>
+                <Link className="underline" href={faucet.url} target="_blank">
+                  {faucet.name}
+                </Link>
+                {index < faucets.length - 1 ? ', ' : ''}
+              </>
+            )
+          })}
+        </div>
       )}
-    </>
+    </div>
   )
 }
 
@@ -95,8 +98,6 @@ export const CreateLockForm = ({
     defaultValues?.unlimitedQuantity
   )
   const [isFree, setIsFree] = useState(defaultValues?.isFree ?? false)
-
-  const [currencyNetwork, setCurrencyNetwork] = useState<string>()
 
   const {
     register,
@@ -123,9 +124,9 @@ export const CreateLockForm = ({
     control,
   })
 
-  const { isLoading: isLoadingBalance, data: balance } = useQuery(
-    ['getBalance', selectedNetwork, account],
-    async () => {
+  const { isPending: isLoadingBalance, data: balance } = useQuery({
+    queryKey: ['getBalance', selectedNetwork, account],
+    queryFn: async () => {
       const balance = await getAccountTokenBalance(
         web3Service,
         account!,
@@ -133,8 +134,8 @@ export const CreateLockForm = ({
         selectedNetwork || 10
       )
       return parseFloat(balance)
-    }
-  )
+    },
+  })
 
   const onHandleSubmit = (values: LockFormProps) => {
     if (isValid) {
@@ -152,7 +153,6 @@ export const CreateLockForm = ({
   const onChangeNetwork = useCallback(
     (network: number | string) => {
       setValue('network', parseInt(`${network}`))
-      setCurrencyNetwork(networks[network].name)
     },
     [setValue]
   )
@@ -193,7 +193,7 @@ export const CreateLockForm = ({
                 defaultValue={selectedNetwork}
                 options={mainNetworkOptions}
                 onChange={onChangeNetwork}
-                description={networkDescription(selectedNetwork!)}
+                description={<NetworkDescription network={selectedNetwork!} />}
                 moreOptions={additionalNetworkOptions}
               />
             )}
@@ -358,12 +358,12 @@ export const CreateLockForm = ({
                   />
                 </div>
                 {errors?.keyPrice && (
-                  <span className="absolute text-xs text-red-700 ">
+                  <span className="text-xs text-red-700 ">
                     Please enter a positive number for the price
                   </span>
                 )}
               </div>
-              <CurrencyHint network={currencyNetwork as string} />
+              <ProtocolFee network={selectedNetwork!} />
             </div>
             <Button
               className="mt-8 md:mt-0"

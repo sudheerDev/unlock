@@ -12,17 +12,16 @@ import { Lock } from '~/unlockTypes'
 import { RiErrorWarningFill as ErrorIcon } from 'react-icons/ri'
 import { usePurchase } from '~/hooks/usePurchase'
 import { useUpdateUsersMetadata } from '~/hooks/useUserMetadata'
-import { usePricing } from '~/hooks/usePricing'
 import { usePurchaseData } from '~/hooks/usePurchaseData'
 import { useCapturePayment } from '~/hooks/useCapturePayment'
-import { useCreditCardEnabled } from '~/hooks/useCreditCardEnabled'
 import { PricingData } from './PricingData'
 import { formatNumber } from '~/utils/formatter'
-import { formatFiatPriceFromCents } from '../utils'
+import { formatFiatPrice, getNumberOfRecurringPayments } from '../utils'
 import { useGetTotalCharges } from '~/hooks/usePrice'
 import { useGetLockSettings } from '~/hooks/useLockSettings'
 import { getCurrencySymbol } from '~/utils/currency'
 import Disconnect from '../Disconnect'
+import { ToastHelper } from '~/components/helpers/toast.helper'
 
 interface Props {
   checkoutService: CheckoutService
@@ -47,6 +46,7 @@ export function CreditCardPricingBreakdown({
   loading,
   symbol = 'USD',
   unlockFeeChargedToUser = true,
+  total,
 }: CreditCardPricingBreakdownProps) {
   return (
     <div className="flex flex-col gap-2 pt-4 text-xs">
@@ -61,48 +61,58 @@ export function CreditCardPricingBreakdown({
           <span>Learn more</span> <ExternalLinkIcon className="inline" />
         </a>
       </h3>
-      <div className="divide-y">
+      <div>
         {unlockFeeChargedToUser && !loading && (
           <Detail
             loading={loading}
-            className="flex justify-between w-full py-2 text-xs border-t border-gray-300"
+            className="flex justify-between w-full py-1 text-xs border-gray-300"
             label="Service Fee"
             labelSize="tiny"
             valueSize="tiny"
             inline
           >
             <div className="font-normal">
-              {formatFiatPriceFromCents(unlockServiceFee, symbol)}
+              {formatFiatPrice(unlockServiceFee, symbol)}
             </div>
           </Detail>
         )}
         {!!creditCardProcessingFee && (
           <Detail
             loading={loading}
-            className="flex justify-between w-full py-2 text-sm"
+            className="flex justify-between w-full py-1 text-sm"
             label="Payment Processor"
             labelSize="tiny"
             valueSize="tiny"
             inline
           >
             <div className="font-normal">
-              {formatFiatPriceFromCents(creditCardProcessingFee, symbol)}
+              {formatFiatPrice(creditCardProcessingFee, symbol)}
             </div>
           </Detail>
         )}
         {!!gasCosts && (
           <Detail
             loading={loading}
-            className="flex justify-between w-full py-2 text-sm"
+            className="flex justify-between w-full py-1 text-sm"
             label="Minting (gas) cost"
             labelSize="tiny"
             valueSize="tiny"
             inline
           >
             <div className="font-normal">
-              {formatFiatPriceFromCents(gasCosts, symbol)}
+              {formatFiatPrice(gasCosts, symbol)}
             </div>
           </Detail>
+        )}
+        {total <= 0.5 && (
+          <Detail
+            loading={loading}
+            className="flex justify-between w-full py-1"
+            label="(The minimum charge is $0.50)"
+            labelSize="tiny"
+            valueSize="tiny"
+            inline
+          />
         )}
       </div>
     </div>
@@ -118,27 +128,19 @@ export function ConfirmCard({ checkoutService, onConfirmed, onError }: Props) {
 
   const { address: lockAddress, network: lockNetwork } = lock!
 
-  const recurringPayment =
-    paywallConfig?.recurringPayments ||
-    paywallConfig?.locks[lockAddress]?.recurringPayments
-
-  const recurringPaymentAmount = recurringPayment
-    ? Math.abs(Math.floor(Number(recurringPayment)))
-    : undefined
+  const recurringPayments = getNumberOfRecurringPayments(
+    paywallConfig?.locks[lockAddress]?.recurringPayments ||
+      paywallConfig?.recurringPayments
+  )
 
   const { mutateAsync: createPurchaseIntent } = usePurchase({
     lockAddress,
     network: lockNetwork,
   })
 
-  const { data: creditCardEnabled } = useCreditCardEnabled({
-    lockAddress,
-    network: lockNetwork,
-  })
-
   const { mutateAsync: updateUsersMetadata } = useUpdateUsersMetadata()
 
-  const { isInitialLoading: isInitialDataLoading, data: purchaseData } =
+  const { isLoading: isInitialDataLoading, data: purchaseData } =
     usePurchaseData({
       lockAddress: lock!.address,
       network: lock!.network,
@@ -147,31 +149,10 @@ export function ConfirmCard({ checkoutService, onConfirmed, onError }: Props) {
       data,
     })
 
-  const {
-    data: pricingData,
-    isInitialLoading: isPricingDataLoading,
-    isError: isPricingDataError,
-  } = usePricing({
-    lockAddress: lock!.address,
+  const { data: { unlockFeeChargedToUser } = {} } = useGetLockSettings({
     network: lock!.network,
-    recipients,
-    currencyContractAddress: lock?.currencyContractAddress,
-    data: purchaseData!,
-    paywallConfig,
-    enabled: !isInitialDataLoading,
-    symbol: lockTickerSymbol(
-      lock as Lock,
-      config.networks[lock!.network].nativeCurrency.symbol
-    ),
+    lockAddress: lock!.address,
   })
-  const { data: { creditCardPrice, unlockFeeChargedToUser } = {} } =
-    useGetLockSettings({
-      network: lock!.network,
-      lockAddress: lock!.address,
-    })
-
-  const isPricingDataAvailable =
-    !isPricingDataLoading && !isPricingDataError && !!pricingData
 
   const { data: { creditCardCurrency = 'usd ' } = {} } = useGetLockSettings({
     lockAddress,
@@ -182,7 +163,8 @@ export function ConfirmCard({ checkoutService, onConfirmed, onError }: Props) {
 
   const {
     data: totalPricing,
-    isInitialLoading: isTotalPricingDataLoading,
+    isLoading: isTotalPricingDataLoading,
+    isError: isTotalPricingDataError,
     isFetched: isTotalPricingDataFetched,
   } = useGetTotalCharges({
     recipients,
@@ -190,21 +172,6 @@ export function ConfirmCard({ checkoutService, onConfirmed, onError }: Props) {
     network: lock!.network,
     purchaseData: purchaseData || [],
   })
-
-  // show gas cost only when custom credit card price is present
-  const gasCosts = creditCardPrice ? undefined : totalPricing?.gasCost
-
-  useEffect(() => {
-    const fetchReferrers = async () => {
-      const referrers: string[] = await Promise.all(
-        recipients.map(async (recipient) => {
-          return await getReferrer(recipient, paywallConfig, lock!.address)
-        })
-      )
-      setReferrers(referrers)
-    }
-    fetchReferrers()
-  }, [lock, paywallConfig, recipients])
 
   const { mutateAsync: capturePayment } = useCapturePayment({
     network: lock!.network,
@@ -215,80 +182,75 @@ export function ConfirmCard({ checkoutService, onConfirmed, onError }: Props) {
     purchaseType: renew ? 'extend' : 'purchase',
   })
 
-  const isLoading =
-    isPricingDataLoading || isInitialDataLoading || isTotalPricingDataLoading
+  const isLoading = isInitialDataLoading || isTotalPricingDataLoading
 
   const baseCurrencySymbol = config.networks[lockNetwork].nativeCurrency.symbol
   const symbol = lockTickerSymbol(lock as Lock, baseCurrencySymbol)
 
   const onConfirmCard = async () => {
     setIsConfirming(true)
+    try {
+      const referrers: string[] = recipients.map((recipient) => {
+        return getReferrer(recipient, paywallConfig, lockAddress)
+      })
 
-    const stripeIntent = await createPurchaseIntent({
-      pricing: totalPricing!.total,
-      // @ts-expect-error - generated types don't narrow down to the right type
-      stripeTokenId: payment.cardId!,
-      recipients,
-      referrers,
-      data: purchaseData!,
-      recurring: recurringPaymentAmount || 0,
-    })
+      const stripeIntent = await createPurchaseIntent({
+        pricing: totalPricing!.total * 100, //
+        // @ts-expect-error - generated types don't narrow down to the right type
+        stripeTokenId: payment.cardId!,
+        recipients,
+        referrers,
+        data: purchaseData!,
+        recurring: recurringPayments,
+      })
 
-    if (!stripeIntent?.clientSecret) {
-      throw new Error('Creating payment intent failed')
-    }
+      if (!stripeIntent?.clientSecret) {
+        throw new Error('Creating payment intent failed')
+      }
 
-    const stripe = await loadStripe(config.stripeApiKey, {
-      stripeAccount: stripeIntent.stripeAccount,
-    })
+      const stripe = await loadStripe(config.stripeApiKey, {
+        stripeAccount: stripeIntent.stripeAccount,
+      })
 
-    if (!stripe) {
-      throw new Error('There was a problem in loading stripe')
-    }
+      if (!stripe) {
+        throw new Error('There was a problem in loading stripe')
+      }
 
-    const { paymentIntent } = await stripe.retrievePaymentIntent(
-      stripeIntent.clientSecret
-    )
-
-    if (!paymentIntent) {
-      throw new Error('Payment intent is missing. Please retry.')
-    }
-
-    if (paymentIntent.status !== 'requires_capture') {
-      const confirmation = await stripe.confirmCardPayment(
+      const { paymentIntent } = await stripe.retrievePaymentIntent(
         stripeIntent.clientSecret
       )
-      if (
-        confirmation.error ||
-        confirmation.paymentIntent?.status !== 'requires_capture'
-      ) {
-        onError(confirmation.error?.message || 'Failed to confirm payment')
-        setIsConfirming(false)
-        return
+
+      if (!paymentIntent) {
+        throw new Error('Payment intent is missing. Please retry.')
       }
-    }
 
-    capturePayment({
-      paymentIntent: paymentIntent.id,
-    })
-      .then((transactionHash) => {
-        onConfirmed(lockAddress, lockNetwork, transactionHash)
-        setIsConfirming(false)
-      })
-      .catch((error) => {
-        onError(
-          'There was an error while trying to capture your payment. Please check with your financial institution.'
+      if (paymentIntent.status !== 'requires_capture') {
+        const confirmation = await stripe.confirmCardPayment(
+          stripeIntent.clientSecret
         )
-        console.log(error.response.data)
-        setIsConfirming(false)
+        if (
+          confirmation.error ||
+          confirmation.paymentIntent?.status !== 'requires_capture'
+        ) {
+          onError(confirmation.error?.message || 'Failed to confirm payment')
+          setIsConfirming(false)
+          return
+        }
+      }
+
+      const transactionHash = await capturePayment({
+        paymentIntent: paymentIntent.id,
       })
+      onConfirmed(lockAddress, lockNetwork, transactionHash)
+    } catch (error) {
+      console.error('Error while confirming card payment', error)
+      ToastHelper.error(
+        // @ts-expect-error Property 'response' does not exist on type '{}'.
+        `There was an error when trying to perform the payment. You card was not charged. ${error?.response?.data?.error}`
+      )
+    }
+    setIsConfirming(false)
   }
-
-  const isError = isPricingDataError
-
-  const usdTotalPricing = totalPricing?.total
-    ? totalPricing?.total / 100
-    : undefined
 
   return (
     <Fragment>
@@ -296,7 +258,7 @@ export function ConfirmCard({ checkoutService, onConfirmed, onError }: Props) {
         <div className="grid gap-y-2">
           <h4 className="text-xl font-bold"> {lock!.name}</h4>
 
-          {isError && (
+          {isTotalPricingDataError && (
             // TODO: use actual error from simulation
             <div>
               <p className="text-sm font-bold">
@@ -307,70 +269,70 @@ export function ConfirmCard({ checkoutService, onConfirmed, onError }: Props) {
           )}
 
           {/* Breakdown of each keys */}
-          {!isLoading && isPricingDataAvailable && (
+          {!isLoading && totalPricing && (
             <PricingData
               network={lockNetwork}
               lock={lock!}
-              pricingData={totalPricing}
+              prices={totalPricing.prices}
               payment={payment}
             />
           )}
-        </div>
-        {/* Totals */}
-        {isLoading && (
-          <div className="flex flex-col items-center gap-2">
-            {recipients.map((user) => (
-              <div
-                key={user}
-                className="w-full p-4 bg-gray-100 rounded-lg animate-pulse"
-              />
-            ))}
-          </div>
-        )}
 
-        {pricingData && !isError && (
-          <Pricing
-            keyPrice={
-              pricingData.total <= 0
-                ? 'FREE'
-                : `${formatNumber(
-                    pricingData.total
-                  ).toLocaleString()} ${symbol}`
-            }
-            usdPrice={
-              usdTotalPricing
-                ? `${formatNumber(
-                    usdTotalPricing
-                  ).toLocaleString()} ${creditCardCurrencySymbol}`
-                : ''
-            }
-            isCardEnabled={!!creditCardEnabled}
-            extra={
-              !isError &&
-              pricingData && (
-                <CreditCardPricingBreakdown
-                  loading={
-                    isTotalPricingDataLoading || !isTotalPricingDataFetched
-                  }
-                  total={totalPricing?.total ?? 0}
-                  creditCardProcessingFee={
-                    totalPricing?.creditCardProcessingFee
-                  }
-                  unlockServiceFee={totalPricing?.unlockServiceFee ?? 0}
-                  gasCosts={gasCosts}
-                  symbol={creditCardCurrencySymbol}
-                  unlockFeeChargedToUser={unlockFeeChargedToUser}
+          {/* Totals */}
+          {isLoading && (
+            <div className="flex flex-col items-center gap-2">
+              {recipients.map((user) => (
+                <div
+                  key={user}
+                  className="w-full p-4 bg-gray-100 rounded-lg animate-pulse"
                 />
-              )
-            }
-          />
-        )}
+              ))}
+            </div>
+          )}
+
+          {!isTotalPricingDataError && totalPricing && (
+            <Pricing
+              keyPrice={
+                totalPricing.total <= 0
+                  ? 'FREE'
+                  : `${formatNumber(
+                      totalPricing.total
+                    ).toLocaleString()} ${symbol}`
+              }
+              usdPrice={formatFiatPrice(
+                totalPricing!.total,
+                creditCardCurrencySymbol
+              )}
+              isCardEnabled={true}
+              extra={
+                !isTotalPricingDataError &&
+                totalPricing && (
+                  <div className="border-b">
+                    <CreditCardPricingBreakdown
+                      loading={
+                        isTotalPricingDataLoading || !isTotalPricingDataFetched
+                      }
+                      total={totalPricing?.total ?? 0}
+                      creditCardProcessingFee={
+                        totalPricing?.creditCardProcessingFee
+                      }
+                      unlockServiceFee={totalPricing?.unlockServiceFee ?? 0}
+                      gasCosts={totalPricing?.gasCost}
+                      symbol={creditCardCurrencySymbol}
+                      unlockFeeChargedToUser={unlockFeeChargedToUser}
+                    />
+                  </div>
+                )
+              }
+            />
+          )}
+        </div>
       </main>
       <footer className="grid items-center px-6 pt-6 border-t">
         <div className="grid">
           <Button
             loading={isConfirming}
-            disabled={isConfirming || isLoading || isError}
+            disabled={isConfirming || isLoading || isTotalPricingDataError}
             onClick={async (event) => {
               event.preventDefault()
               if (metadata) {

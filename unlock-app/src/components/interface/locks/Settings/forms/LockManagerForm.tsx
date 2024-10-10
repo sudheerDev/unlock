@@ -12,7 +12,12 @@ import { Controller, useForm, useWatch } from 'react-hook-form'
 import { ToastHelper } from '~/components/helpers/toast.helper'
 import { useAuth } from '~/contexts/AuthenticationContext'
 import { useEffect, useState } from 'react'
-import { Transition, Dialog } from '@headlessui/react'
+import {
+  Transition,
+  Dialog,
+  DialogPanel,
+  TransitionChild,
+} from '@headlessui/react'
 import { onResolveName } from '~/utils/resolvers'
 import useEns from '~/hooks/useEns'
 import { useAddLockManager } from '~/hooks/useAddLockManager'
@@ -77,7 +82,7 @@ const RenounceModal = ({
           open
         >
           <div className="fixed inset-0 bg-opacity-25 backdrop-filter backdrop-blur-sm bg-zinc-500" />
-          <Transition.Child
+          <TransitionChild
             enter="transition ease-out duration-300"
             enterFrom="opacity-0 translate-y-1"
             enterTo="opacity-100"
@@ -87,7 +92,7 @@ const RenounceModal = ({
           >
             <div className="fixed inset-0 p-6 overflow-y-auto">
               <div className="flex items-center justify-center min-h-full">
-                <Dialog.Panel className="w-full max-w-md p-8 bg-white rounded-2xl">
+                <DialogPanel className="w-full max-w-md p-8 bg-white rounded-2xl">
                   <form
                     onSubmit={handleSubmit(onRenounce)}
                     className="flex flex-col gap-6 text-center"
@@ -106,7 +111,7 @@ const RenounceModal = ({
                       <span className="text-base text-brand-dark">
                         You are about to permanently renounce yourself as Lock
                         manager. You will not be able to revert this action.
-                        Please type “renounce” to confirm.
+                        Please type &ldquo;renounce&rdquo; to confirm.
                       </span>
                     </div>
                     <Input
@@ -131,10 +136,10 @@ const RenounceModal = ({
                       </Button>
                     </div>
                   </form>
-                </Dialog.Panel>
+                </DialogPanel>
               </div>
             </div>
-          </Transition.Child>
+          </TransitionChild>
         </Dialog>
       </Transition>
     </>
@@ -159,12 +164,14 @@ const LockManagerCard = ({
     })
   }
 
-  const renounceLockManagerMutation = useMutation(renounceLockManager)
+  const renounceLockManagerMutation = useMutation({
+    mutationFn: renounceLockManager,
+  })
 
   const onRenounce = async () => {
     const renounceLockManagerPromise = renounceLockManagerMutation.mutateAsync()
     await ToastHelper.promise(renounceLockManagerPromise, {
-      loading: `Removing Lock Manager status.`,
+      loading: 'Removing Lock Manager status.',
       success: `Lock manager renounced for ${minifyAddress(manager)}.`,
       error: `Can't renounce Lock manager for ${minifyAddress(manager)}`,
     })
@@ -192,7 +199,7 @@ const LockManagerCard = ({
           </span>
           {isLoggedUser && (
             <span className="text-sm font-semibold text-brand-ui-primary">
-              {`That's you`}
+              {"That's you"}
             </span>
           )}
         </div>
@@ -236,18 +243,16 @@ export const LockManagerForm = ({
 
   const addLockManagerMutation = useAddLockManager(lockAddress, network)
 
-  const { isLoading, data: lockSubgraph } = useQuery(
-    [
+  const { isPending, data: lockSubgraph } = useQuery({
+    queryKey: [
       'getLockManagerForm',
       lockAddress,
       network,
       addLockManagerMutation.isSuccess,
     ],
-    async () => getLock(),
-    {
-      refetchInterval: 1000,
-    }
-  )
+    queryFn: getLock,
+    refetchInterval: 1000,
+  })
 
   const onAddLockManager = async ({ manager = '' }: any) => {
     if (manager !== '') {
@@ -260,12 +265,12 @@ export const LockManagerForm = ({
 
   const noManagers = managers?.length === 0
 
-  const disableInput = disabled || isLoading || addLockManagerMutation.isLoading
+  const disableInput = disabled || isPending || addLockManagerMutation.isPending
 
   return (
     <div className="relative">
       <div className="flex flex-col gap-4">
-        {noManagers && !isLoading && (
+        {noManagers && !isPending && (
           <span className="text-red-500">
             This lock does not have any Lock Manager.
           </span>
@@ -286,7 +291,7 @@ export const LockManagerForm = ({
             </div>
           </div>
         )}
-        {(isLoading || addLockManagerMutation.isLoading) && (
+        {(isPending || addLockManagerMutation.isPending) && (
           <Placeholder.Line size="xl" />
         )}
       </div>
@@ -326,7 +331,7 @@ export const LockManagerForm = ({
             className="w-full md:w-1/2"
             type="submit"
             disabled={disableInput}
-            loading={addLockManagerMutation.isLoading}
+            loading={addLockManagerMutation.isPending}
           >
             Add
           </Button>

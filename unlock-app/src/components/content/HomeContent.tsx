@@ -1,17 +1,17 @@
-import React, { useEffect } from 'react'
+import { useEffect } from 'react'
 import Head from 'next/head'
 import { pageTitle } from '../../constants'
 import { TwitterTags } from '../page/TwitterTags'
 import { OpenGraphTags } from '../page/OpenGraphTags'
 import { AppLayout } from '../interface/layouts/AppLayout'
-import { useRouter } from 'next/router'
+import { useRouter } from 'next/navigation'
 import { useAuth } from '~/contexts/AuthenticationContext'
 import Loading from '../interface/Loading'
 import { Launcher } from '../interface/Launcher'
 import { useSession } from '~/hooks/useSession'
 
 export const HomeContent = () => {
-  const { isInitialLoading } = useSession()
+  const { isLoading } = useSession()
   const router = useRouter()
   const { account } = useAuth()
 
@@ -19,7 +19,7 @@ export const HomeContent = () => {
     if (account) {
       router.push('/locks')
     }
-  })
+  }, [account, router])
 
   return (
     <AppLayout authRequired={false} showLinks={false}>
@@ -29,7 +29,7 @@ export const HomeContent = () => {
         <OpenGraphTags />
       </Head>
       {account && <Loading />}
-      {!account && !isInitialLoading && <Launcher />}
+      {!account && !isLoading && <Launcher />}
     </AppLayout>
   )
 }

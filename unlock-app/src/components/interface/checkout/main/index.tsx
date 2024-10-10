@@ -1,3 +1,5 @@
+'use client'
+
 import React, { useCallback, useEffect, useMemo } from 'react'
 import { useCheckoutCommunication } from '~/hooks/useCheckoutCommunication'
 import { checkoutMachine } from './checkoutMachine'
@@ -20,9 +22,9 @@ import { PaywallConfigType } from '@unlock-protocol/core'
 import { Guild } from './Guild'
 import { Gitcoin } from './Gitcoin'
 import { isInIframe } from '~/utils/iframe'
-import { ConnectWithLoader } from './ConnectWithLoader'
-import { useRouter } from 'next/router'
+import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { Select } from './Select'
+import { Connected } from '../Connected'
 
 interface Props {
   paywallConfig: PaywallConfigType
@@ -53,6 +55,8 @@ export function Checkout({
   )
 
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const pathname = usePathname()
 
   useEffect(() => {
     console.debug('Unlock paywall config', paywallConfig)
@@ -106,8 +110,8 @@ export function Checkout({
     },
     [
       handleClose,
-      communication,
       redirectURI,
+      communication,
       mint,
       messageToSign,
       paywallConfig.messageToSign,
@@ -131,24 +135,24 @@ export function Checkout({
   }, [state, checkoutService])
 
   useEffect(() => {
-    if (matched !== 'SELECT' && matched != 'CONNECT' && router.query.lock) {
+    if (
+      matched !== 'SELECT' &&
+      matched != 'CONNECT' &&
+      searchParams.get('lock')
+    ) {
       // Remove the lock from the query string
-      const { lock, ...otherQueryParams } = router.query
-      router.replace(
-        {
-          pathname: router.pathname,
-          query: otherQueryParams,
-        },
-        undefined,
-        { shallow: true }
-      )
+      const newSearchParams = new URLSearchParams(searchParams.toString())
+      newSearchParams.delete('lock')
+      router.replace(`${pathname}?${newSearchParams.toString()}`, {
+        scroll: false,
+      })
     }
-  }, [router])
+  }, [router, searchParams, matched, pathname])
 
   const Content = useCallback(() => {
     switch (matched) {
       case 'CONNECT': {
-        return <ConnectWithLoader checkoutService={checkoutService} />
+        return <Connected service={checkoutService} />
       }
       case 'SELECT': {
         return <Select checkoutService={checkoutService} />
@@ -218,7 +222,7 @@ export function Checkout({
         return null
       }
     }
-  }, [onClose, matched, communication])
+  }, [matched])
 
   return (
     <div className="bg-white z-10  shadow-xl max-w-md rounded-xl flex flex-col w-full h-[90vh] sm:h-[80vh] min-h-[32rem] max-h-[42rem]">

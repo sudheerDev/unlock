@@ -3,16 +3,14 @@
 
 // A bug in eslint causes it to think that this exported enum is "unused". So
 // disable eslint for that declaration until they fix it. TODO: follow up on this.
-/* eslint-disable no-unused-vars */
+
 export enum TransactionType {
   LOCK_CREATION = 'LOCK_CREATION',
   KEY_PURCHASE = 'KEY_PURCHASE',
   WITHDRAWAL = 'WITHDRAWAL',
   UPDATE_KEY_PRICE = 'UPDATE_KEY_PRICE',
 }
-/* eslint-enable no-unused-vars */
 
-/* eslint-disable no-unused-vars */
 export enum TransactionStatus {
   SUBMITTED = 'submitted',
   PENDING = 'pending',
@@ -21,7 +19,6 @@ export enum TransactionStatus {
   FAILED = 'failed',
   NONE = '', // for testing purposes
 }
-/* eslint-enable no-unused-vars */
 
 export interface NetworkDeploy {
   unlockAddress: string
@@ -38,6 +35,7 @@ export interface Token {
   mainnetAddress?: string
   wrapped?: string
   featured?: boolean
+  faucet?: Faucet
 }
 
 export enum HookType {
@@ -82,6 +80,11 @@ export interface NetworkBridgeConfig {
   }
 }
 
+export interface Faucet {
+  name: string
+  url: string
+}
+
 export interface NetworkConfig {
   id: number
   featured: boolean
@@ -101,9 +104,9 @@ export interface NetworkConfig {
   publicLockVersionToDeploy: number
   subgraph: {
     endpoint: string
-    // refers to thegraph services list : https://thegraph.com/docs/en/developing/supported-networks/
     networkName?: string // network slug used by the graph
     studioName?: string
+    graphId: string
   }
   uniswapV3?: Partial<{
     subgraph: string
@@ -153,7 +156,7 @@ export interface NetworkConfig {
   previousDeploys?: NetworkDeploy[]
   description: string
   url?: string
-  faucet?: string
+  faucets?: Faucet[]
   tokens?: Token[]
   hooks?: Partial<Record<HookName, Hook[]>>
   fullySubsidizedGas?: boolean
@@ -165,6 +168,7 @@ export interface NetworkConfigs {
 
 export interface ContractAbi {
   contractName: string
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type
   abi: Array<{}>
   bytecode: string
   deployedBytecode: string

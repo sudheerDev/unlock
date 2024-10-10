@@ -1,5 +1,6 @@
 import { ethers } from 'ethers'
 import { queryGraph } from './subgraph'
+import { HookType } from '@unlock-protocol/types'
 
 export const getAllAddresses = async ({ network }) => {
   const {
@@ -24,9 +25,13 @@ export const getAllAddresses = async ({ network }) => {
 
   // get latest lock proxy
   // TODO: fetch lock proxy status from previous versions
-  const lockAddress = await getLockAddress(subgraph.endpoint, lockVersion)
-  if (lockAddress) {
-    addresses[`LockProxyV${lockVersion}`] = lockAddress
+  try {
+    const lockAddress = await getLockAddress(subgraph.endpoint, lockVersion)
+    if (lockAddress) {
+      addresses[`LockProxyV${lockVersion}`] = lockAddress
+    }
+  } catch (error) {
+    // missing lock address
   }
 
   // add other addresses
@@ -40,14 +45,14 @@ export const getAllAddresses = async ({ network }) => {
     addresses[`UnlockOwner`] = unlockDaoToken.address
   }
 
-  // TODO: get all hooks
-  if (hooks) {
-    if (hooks.onKeyPurchaseHook) {
-      hooks.onKeyPurchaseHook.map(({ address, id }) => {
-        addresses[`onKeyPurchaseHook_${id}`] = address
-      })
-    }
-  }
+  // get hooks from type file
+  const requiredHooks = Object.values(HookType)
+
+  // check hooks addresses
+  requiredHooks.map((hookId) => {
+    const hook = hooks?.onKeyPurchaseHook?.find(({ id }) => hookId === id)
+    addresses[`onKeyPurchaseHook_${hookId}`] = hook?.address
+  })
 
   return addresses
 }
@@ -88,7 +93,7 @@ export const getLockAddress = async (subgraphEndpoint, lockVersion) => {
     }
   `
 
-  const { data, success } = await queryGraph(subgraphEndpoint, query)
+  const { data, success } = await queryGraph({ query, subgraphEndpoint })
 
   if (success) {
     // get the first lock
@@ -99,4 +104,42 @@ export const getLockAddress = async (subgraphEndpoint, lockVersion) => {
     }
     return lockAddress
   }
+}
+
+export const checkOwnership = async ({
+  contractAddress,
+  expectedOwner,
+  providerURL,
+}: {
+  contractAddress: string
+  expectedOwner: string
+  providerURL: string
+}) => {
+  const provider = new ethers.JsonRpcProvider(providerURL)
+
+  const ownableAbi = [`function owner() external view returns (address owner)`]
+  const contract = new ethers.Contract(contractAddress, ownableAbi, provider)
+
+  return expectedOwner.toLowerCase() === (await contract.owner()).toLowerCase()
+}
+
+export const checkProxyAdminOwnership = async ({
+  contractAddress,
+  expectedOwner,
+  providerURL,
+}: {
+  contractAddress: string
+  expectedOwner: string
+  providerURL: string
+}) => {
+  // get proxy admin address
+  const provider = new ethers.JsonRpcProvider(providerURL)
+  const unlockAbi = [`function getAdmin() external view returns (address)`]
+  const unlock = new ethers.Contract(contractAddress, unlockAbi, provider)
+  const proxyAdminAddress = await unlock.getAdmin()
+  return await checkOwnership({
+    contractAddress: proxyAdminAddress,
+    expectedOwner,
+    providerURL,
+  })
 }

@@ -1,5 +1,7 @@
+'use client'
+
 import { Button, Modal, Tabs } from '@unlock-protocol/ui'
-import { useRouter } from 'next/router'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { CheckoutConfig, PaywallConfigType } from '@unlock-protocol/core'
 import {
@@ -40,10 +42,10 @@ const Header = () => {
   )
 }
 
-export const CheckoutUrlPage = () => {
+export const CheckoutUrlContent = () => {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { account } = useAuth()
-  const query = router.query
   const [checkoutUrl, setCheckoutUrl] = useState('')
   const [isDeleteConfirmation, setDeleteConfirmation] = useState(false)
   const [configuration, setConfiguration] = useState<Configuration>('new')
@@ -76,10 +78,10 @@ export const CheckoutUrlPage = () => {
     refetch: refetchConfigList,
   } = useCheckoutConfigsByUser()
 
-  const { mutateAsync: updateConfig, isLoading: isConfigUpdating } =
+  const { mutateAsync: updateConfig, isPending: isConfigUpdating } =
     useCheckoutConfigUpdate()
 
-  const { mutateAsync: removeConfig, isLoading: isConfigRemoving } =
+  const { mutateAsync: removeConfig, isPending: isConfigRemoving } =
     useCheckoutConfigRemove()
 
   useEffect(() => {
@@ -136,13 +138,15 @@ export const CheckoutUrlPage = () => {
 
   const TopBar = () => {
     return (
-      <Button variant="borderless" aria-label="arrow back">
-        <ArrowBackIcon
-          size={20}
-          className="cursor-pointer"
-          onClick={() => router.back()}
-        />
-      </Button>
+      <div className="flex justify-start">
+        <Button variant="borderless" aria-label="arrow back">
+          <ArrowBackIcon
+            size={20}
+            className="cursor-pointer"
+            onClick={() => router.back()}
+          />
+        </Button>
+      </div>
     )
   }
 
@@ -154,34 +158,47 @@ export const CheckoutUrlPage = () => {
         ...rest,
         config: config || DEFAULT_CONFIG,
       }
+
       setCheckoutConfig(option)
+
       if (!option.id) {
-        const response = await updateConfig(option)
-        setCheckoutConfig({
-          id: response.id!,
-          config: response.config as PaywallConfigType,
-          name: response.name,
-        })
-        setValue('configName', '') // reset field after new configuration is set
-        await refetchConfigList()
+        try {
+          const response = await updateConfig(option)
+
+          setCheckoutConfig({
+            id: response.id!,
+            config: response.config as PaywallConfigType,
+            name: response.name,
+          })
+          setValue('configName', '') // reset field after new configuration is set
+          await refetchConfigList()
+        } catch (error) {
+          // Pass error to the form to block skip to next step
+          console.error("Couldn't create new configuration: ", error)
+          throw error
+        }
       }
     },
     [DEFAULT_CONFIG, refetchConfigList, setValue, updateConfig]
   )
 
   useEffect(() => {
-    if (checkoutConfigList?.length && !!query.id) {
-      const config = checkoutConfigList.find((c) => c.id === query.id)
+    if (checkoutConfigList?.length && !!searchParams.get('id')) {
+      const config = checkoutConfigList.find(
+        (c) => c.id === searchParams.get('id')
+      )
       if (config) {
-        // @ts-expect-error somethinf
+        // @ts-expect-error something
         handleSetConfiguration(config)
       } else {
         // TODO: handle the case where the user is a lock manager but the config was not created by them
       }
     }
-  }, [checkoutConfigList, query.id, handleSetConfiguration])
+  }, [checkoutConfigList, searchParams, handleSetConfiguration])
 
-  const handleSetConfigurationMutation = useMutation(handleSetConfiguration)
+  const handleSetConfigurationMutation = useMutation({
+    mutationFn: handleSetConfiguration,
+  })
 
   const isNewConfiguration = configuration === 'new'
 
@@ -190,12 +207,17 @@ export const CheckoutUrlPage = () => {
     if (!isValid) return Promise.reject() // pass rejected promise to block skip to next step
 
     if (isNewConfiguration) {
-      // this is a new config, let's pass an empty config
-      await handleSetConfiguration({
-        id: null,
-        name: configName,
-        config: DEFAULT_CONFIG.config,
-      })
+      try {
+        // this is a new config, let's pass an empty config
+        await handleSetConfiguration({
+          id: null,
+          name: configName,
+          config: DEFAULT_CONFIG.config,
+        })
+      } catch (error) {
+        ToastHelper.error('A configuration with that name already exists.')
+        return Promise.reject()
+      }
     } else {
       if (!checkoutConfig?.id) {
         ToastHelper.error('Please select a configuration or create a new one.')
@@ -204,8 +226,12 @@ export const CheckoutUrlPage = () => {
     }
   }
 
-  const submitConfigurationMutation = useMutation(onSubmitConfiguration)
-  const deleteConfigurationMutation = useMutation(onConfigRemove)
+  const submitConfigurationMutation = useMutation({
+    mutationFn: onSubmitConfiguration,
+  })
+  const deleteConfigurationMutation = useMutation({
+    mutationFn: onConfigRemove,
+  })
 
   const hasSelectedConfig =
     configuration === 'existing' && checkoutConfig?.id !== undefined
@@ -223,11 +249,11 @@ export const CheckoutUrlPage = () => {
         id: checkoutConfig.id,
       })
     },
-    2000, // 2 seconds of delay after edit's to trigger auto-save
+    2000, // 2 seconds of delay after edits to trigger auto-save
     [checkoutConfig, updateConfig, refetchConfigList]
   )
   const loading =
-    isLoadingConfigList || handleSetConfigurationMutation.isLoading
+    isLoadingConfigList || handleSetConfigurationMutation.isPending
 
   return (
     <>
@@ -253,7 +279,7 @@ export const CheckoutUrlPage = () => {
         </div>
       </Modal>
       <TopBar />
-      <div className="z-[1] flex flex-col w-full min-h-screen gap-8 pt-10 pb-20 md:flex-row relative">
+      <div className="z-[1] flex flex-col w-full min-h-screen gap-8 pb-20 md:flex-row relative">
         <div className="z-0 order-2 md:w-1/2 md:order-1">
           <CheckoutPreview
             id={checkoutConfig.id}
@@ -276,8 +302,8 @@ export const CheckoutUrlPage = () => {
                         <ChooseConfiguration
                           loading={
                             isLoadingConfigList ||
-                            submitConfigurationMutation.isLoading ||
-                            deleteConfigurationMutation.isLoading
+                            submitConfigurationMutation.isPending ||
+                            deleteConfigurationMutation.isPending
                           }
                           name="configName"
                           control={control}

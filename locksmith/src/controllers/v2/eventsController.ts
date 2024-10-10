@@ -24,7 +24,7 @@ import { isVerifierOrManagerForLock } from '../../utils/middlewares/isVerifierMi
 import { sendEmail } from '../../operations/wedlocksOperations'
 import { getEventUrl } from '../../utils/eventHelpers'
 import { Web3Service, getErc20Decimals } from '@unlock-protocol/unlock-js'
-import { uploadJsonToS3 } from '../../utils/uploadJsonToS3'
+import { uploadJsonToS3 } from '../../utils/s3'
 import config from '../../config/config'
 import { downloadJsonFromS3 } from '../../utils/downloadJsonFromS3'
 import logger from '../../logger'
@@ -77,7 +77,6 @@ export const saveEventDetails: RequestHandler = async (request, response) => {
     await sendEmail({
       template: 'eventDeployed',
       recipient: event.data.replyTo,
-      // @ts-expect-error object incomplete
       params: {
         eventName: event!.name,
         eventDate: event!.data.ticket.event_start_date,
@@ -95,6 +94,7 @@ export const saveEventDetails: RequestHandler = async (request, response) => {
 export const getAllEvents: RequestHandler = async (request, response) => {
   const page = request.query.page ? Number(request.query.page) : 1
   const events = await EventData.findAll({
+    order: [['createdAt', 'DESC']],
     limit: 10,
     offset: (page - 1) * 10,
     include: [{ model: CheckoutConfig, as: 'checkoutConfig' }],

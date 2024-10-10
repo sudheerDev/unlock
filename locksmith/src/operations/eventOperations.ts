@@ -24,6 +24,8 @@ export interface EventProps {
   eventTime: string
   eventDate: string
   eventAddress: string
+  eventLocation: string
+  eventIsInPerson: boolean
   eventName: string
   startDate: Date | null
   endDate: Date | null
@@ -61,7 +63,7 @@ export const getEventForLock = async (
 
   // If there are checkout configs, let's see if an even exists with them!
   // Let's now find any event that uses this checkout config!
-  const event = await EventData.findOne({
+  const event = await EventData.scope('withoutId').findOne({
     where: {
       checkoutConfigId: checkoutConfigs.map((record) => record.id),
     },
@@ -120,6 +122,9 @@ export const getEventMetadataForLock = async (
       ) ?? (startDate ? dayjs(startDate).add(1, 'hour').toDate() : null)
 
     const eventAddress = getAttribute('event_address') ?? ''
+    const eventLocation = getAttribute('event_location') ?? ''
+
+    const eventIsInPerson = getAttribute('event_is_in_person') === 'true'
 
     const isSameDay = dayjs(startDate).isSame(endDate, 'day')
 
@@ -162,6 +167,8 @@ export const getEventMetadataForLock = async (
       eventDate,
       eventTime,
       eventAddress,
+      eventLocation,
+      eventIsInPerson,
       startDate,
       eventUrl: lockMetadata?.external_url,
       endDate,
@@ -175,7 +182,7 @@ export const getEventBySlug = async (
   slug: string,
   includeProtected: boolean
 ) => {
-  const event = await EventData.findOne({
+  const event = await EventData.scope('withoutId').findOne({
     where: {
       slug,
     },
@@ -214,7 +221,7 @@ export const saveEvent = async (
   const slug = parsed.data.slug || (await createEventSlug(parsed.data.name))
 
   let data = {}
-  const previousEvent = await EventData.findOne({
+  const previousEvent = await EventData.scope('withoutId').findOne({
     where: { slug },
   })
   if (previousEvent) {

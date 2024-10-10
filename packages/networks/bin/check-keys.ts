@@ -1,21 +1,14 @@
 import networks from '../src'
 import { log } from './logger'
+import { validateKeys } from './utils/keys'
 
-const expectedKeys = Object.keys(networks['1'])
-
-Object.keys(networks).forEach((network) => {
-  if (network !== '31337') {
-    const missingProperties: string[] = []
-    expectedKeys.forEach((key) => {
-      if (!(key in networks[network])) {
-        missingProperties.push(key as string)
-      }
-    })
-
+Object.keys(networks).forEach((chainId) => {
+  if (chainId !== '31337') {
+    const missingProperties = validateKeys(networks[chainId])
     if (missingProperties.length !== 0) {
       missingProperties.forEach((missingProperty) => {
         log(
-          `[Networks/Keys]: ${networks[network].name} -  ❌ Missing property ${missingProperty}`,
+          `[Networks/Keys]: ${networks[chainId].name} -  ❌ Missing property ${missingProperty}`,
           'info'
         )
       })

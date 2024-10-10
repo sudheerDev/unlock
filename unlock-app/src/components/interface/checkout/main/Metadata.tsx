@@ -35,6 +35,7 @@ import {
 } from '@unlock-protocol/core'
 import { useUpdateUsersMetadata } from '~/hooks/useUserMetadata'
 import Disconnect from './Disconnect'
+import { shouldSkip } from './utils'
 
 interface Props {
   checkoutService: CheckoutService
@@ -116,7 +117,7 @@ export const MetadataInputs = ({
   )
 
   const recipient = recipientFromConfig(paywallConfig, lock) || account
-  const hideRecipient = shouldHideRecipient(paywallConfig, lock)
+  const hideRecipient = shouldSkip({ paywallConfig, lock }).skipRecipient
 
   return (
     <div className="grid gap-2">
@@ -320,9 +321,9 @@ export function Metadata({ checkoutService }: Props) {
 
   const recipient = recipientFromConfig(paywallConfig, lock) || account || ''
 
-  const { isInitialLoading: isMemberLoading, data: isMember } = useQuery(
-    ['isMember', recipient, lock],
-    async () => {
+  const { isLoading: isMemberLoading, data: isMember } = useQuery({
+    queryKey: ['isMember', recipient, lock],
+    queryFn: async () => {
       const total = await web3Service.totalKeys(
         lock!.address,
         recipient!,
@@ -330,10 +331,8 @@ export function Metadata({ checkoutService }: Props) {
       )
       return total > 0
     },
-    {
-      enabled: !!recipient,
-    }
-  )
+    enabled: !!recipient,
+  })
 
   useEffect(() => {
     if (recipient && quantity > fields.length && !isMemberLoading) {
@@ -469,13 +468,4 @@ const recipientFromConfig = (
     return lockRecipient
   }
   return ''
-}
-
-const shouldHideRecipient = (
-  paywall: PaywallConfigType,
-  lock: Lock | LockState | undefined
-): boolean => {
-  return !!(
-    paywall.skipRecipient || paywall?.locks[lock!.address].skipRecipient
-  )
 }

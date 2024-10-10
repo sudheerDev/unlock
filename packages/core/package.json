@@ -17,20 +17,20 @@
   "scripts": {
     "build": "tsup src/index.ts --format=esm,cjs --dts",
     "test": "UNLOCK_ENV=test vitest run --coverage --environment=node",
-    "lint": "eslint --resolve-plugins-relative-to ../eslint-config --ext .tsx,.ts,.js src/",
+    "lint": "eslint",
     "ci": "yarn test && yarn lint && yarn build"
   },
   "devDependencies": {
     "@unlock-protocol/tsconfig": "workspace:./packages/tsconfig",
-    "tsup": "8.1.0",
-    "typescript": "5.5.3",
-    "vitest": "1.6.0"
+    "tsup": "8.3.0",
+    "typescript": "5.6.2",
+    "vitest": "2.1.1"
   },
   "peerDependencies": {
     "zod": "3.23.8"
   },
   "dependencies": {
     "@unlock-protocol/eslint-config": "workspace:./packages/eslint-config",
-    "eslint": "8.57.0"
+    "eslint": "9.11.1"
   }
 }

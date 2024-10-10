@@ -6,6 +6,7 @@ import { SetKickbackContractAsLockManager } from './Components/Kickback/SetKickb
 import { SaveRootForRefunds } from './Components/Kickback/SaveRootForRefunds'
 import { useGetApprovedRefunds } from '~/hooks/useGetApprovedRefunds'
 import { ToastHelper } from '~/components/helpers/toast.helper'
+import { useAttendeeRefund } from '~/hooks/useAttendeeRefund'
 
 export interface StakeRefundProps {
   event: Event
@@ -21,19 +22,26 @@ export const StakeRefund = ({ event, checkoutConfig }: StakeRefundProps) => {
   const network = (checkoutConfig.config.locks[lockAddress].network ||
     checkoutConfig.config.network)!
 
-  const approveRefundsMutation = useMutation(async () => {
-    try {
-      const response = await locksmith.approveRefunds(
-        event.slug,
-        event.attendeeRefund!
-      )
-      return response.data
-    } catch (error) {
-      console.error(error)
-      ToastHelper.error(
-        'Failed to approve refunds. Please make sure you have checked-in attendees.'
-      )
-    }
+  const { data: refundAmount } = useAttendeeRefund({
+    attendeeRefund: event.attendeeRefund,
+  })
+
+  const approveRefundsMutation = useMutation({
+    mutationFn: async () => {
+      try {
+        const response = await locksmith.approveRefunds(
+          event.slug,
+          event.attendeeRefund!
+        )
+        return response.data
+      } catch (error) {
+        console.error(error)
+        ToastHelper.error(
+          'Failed to approve refunds. Please make sure you have checked-in attendees.'
+        )
+        throw error
+      }
+    },
   })
 
   const {
@@ -57,7 +65,8 @@ export const StakeRefund = ({ event, checkoutConfig }: StakeRefundProps) => {
       <div>
         <p className="mb-4">
           At this point, {refundsToApprove.values.length} attendees have been
-          checked-in and could claim a refund, if you approve them.
+          checked-in and could claim a refund, if you approve them, they will be
+          able to claim {refundAmount}.
         </p>
         <ul className="flex flex-col gap-4">
           <li className="flex">
@@ -88,7 +97,7 @@ export const StakeRefund = ({ event, checkoutConfig }: StakeRefundProps) => {
         refunds for them only.
       </p>
       <Button
-        loading={approveRefundsMutation.isLoading}
+        loading={approveRefundsMutation.isPending}
         onClick={() => approveRefundsMutation.mutateAsync()}
       >
         Prepare Refunds

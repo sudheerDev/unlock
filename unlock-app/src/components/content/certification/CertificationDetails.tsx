@@ -1,3 +1,5 @@
+'use client'
+
 import Link from 'next/link'
 import { useMetadata } from '~/hooks/metadata'
 import { toFormData } from '~/components/interface/locks/metadata/utils'
@@ -11,7 +13,7 @@ import {
   minifyAddress,
   Card,
 } from '@unlock-protocol/ui'
-import router from 'next/router'
+import { useRouter } from 'next/navigation'
 import ReactMarkdown from 'react-markdown'
 import { useLockManager } from '~/hooks/useLockManager'
 import { RiExternalLinkLine as ExternalLinkIcon } from 'react-icons/ri'
@@ -32,6 +34,7 @@ import { WarningBar } from '~/components/interface/locks/Create/elements/Balance
 import { UpdateTransferFee } from '~/components/interface/locks/Settings/forms/UpdateTransferFee'
 import { PaywallConfigType, getLockTypeByMetadata } from '@unlock-protocol/core'
 import { useLockData } from '~/hooks/useLockData'
+
 interface CertificationDetailsProps {
   lockAddress: string
   network: number
@@ -50,10 +53,10 @@ const CertificationManagerOptions = ({
     network,
   })
 
-  const { isLoading, data: transferFeeBasisPoints } = useQuery(
-    ['getTransferFeeBasisPoints', lockAddress, network],
-    async () => getTransferFeeBasisPoints()
-  )
+  const { isPending, data: transferFeeBasisPoints } = useQuery({
+    queryKey: ['getTransferFeeBasisPoints', lockAddress, network],
+    queryFn: async () => getTransferFeeBasisPoints(),
+  })
 
   const certificationIsTransferable = Number(transferFeeBasisPoints) !== 10000
 
@@ -62,10 +65,10 @@ const CertificationManagerOptions = ({
   return (
     <div className="grid gap-6 mt-12">
       <p className="text-2xl font-bold text-brand-dark">
-        Tools for you, the certificate issuer
+        Tools for you, the Certification issuer
       </p>
       <div className="grid gap-4">
-        {certificationIsTransferable && !isLoading && (
+        {certificationIsTransferable && !isPending && (
           <div className="flex flex-col gap-2">
             <WarningBar>
               Your certification is transferable! disable it to prevent transfer
@@ -104,7 +107,7 @@ const CertificationManagerOptions = ({
           </div>
         </Card>
         <Disclosure
-          label="Airdrop certificates"
+          label="Airdrop Certifications"
           description="Automatically send NFT certifications to wallets or by email"
         >
           <AirdropForm
@@ -127,31 +130,30 @@ export const CertificationDetails = ({
 }: CertificationDetailsProps) => {
   const { account } = useAuth()
   const [isCheckoutOpen, setCheckoutOpen] = useState(false)
+  const router = useRouter()
 
   const { lock, isLockLoading: isLockDataLoading } = useLockData({
     lockAddress,
     network,
   })
 
-  const { data: metadata, isInitialLoading: isMetadataLoading } = useMetadata({
+  const { data: metadata, isLoading: isMetadataLoading } = useMetadata({
     lockAddress,
     network,
     keyId: tokenId,
   })
 
   const onEdit = () => {
-    return router.push(
-      `/locks/metadata?lockAddress=${lockAddress}&network=${network}`
-    )
+    router.push(`/locks/metadata?lockAddress=${lockAddress}&network=${network}`)
   }
 
-  const { data: key, isFetched } = useCertification({
+  const { data: key } = useCertification({
     lockAddress,
     network,
     tokenId,
   })
 
-  const { isManager: isLockManager, isLoading: isLoadingLockManager } =
+  const { isManager: isLockManager, isPending: isLoadingLockManager } =
     useLockManager({
       lockAddress,
       network,
@@ -165,7 +167,7 @@ export const CertificationDetails = ({
 
   const loading =
     isLockDataLoading ||
-    (isMetadataLoading && !isFetched) ||
+    isMetadataLoading ||
     isLoadingLockManager ||
     isHasValidKeyLoading
 
@@ -242,19 +244,20 @@ export const CertificationDetails = ({
     ?.certification_issuer as string
 
   const Header = () => {
-    if (key && !isPlaceholderData) {
+    if (!isPlaceholderData) {
       if (isLockManager) {
         return (
           <span>
-            Here is the certificate that you issued. This image is an off-chain
-            image that the recipient can share with their professional network.
+            Here is the certification that you issued. This image is an
+            off-chain image that the recipient can share with their professional
+            network.
           </span>
         )
       } else if (viewerIsOwner) {
         return (
           <span>
-            {`Here is the certificate you have received. This image is just an
-            offchain representation of the NFT.`}
+            Here is the certification you have received. This image is just an
+            offchain representation of the NFT.
           </span>
         )
       } else {
@@ -262,7 +265,7 @@ export const CertificationDetails = ({
           <p>
             You are viewing a{' '}
             <span className="font-semibold">{`"${certificationData.name}"`}</span>{' '}
-            issued by {issuer} for{' '}
+            certification issued by {issuer} for{' '}
             <Link
               href={networks[network].explorer?.urls.address(key?.owner) ?? '#'}
               className="font-semibold text-brand-ui-primary hover:underline"
@@ -278,7 +281,7 @@ export const CertificationDetails = ({
           </p>
         )
       }
-    } else if (isPlaceholderData) {
+    } else {
       if (isLockManager) {
         return (
           <p>
@@ -288,8 +291,9 @@ export const CertificationDetails = ({
             network.
           </p>
         )
-      } else {
-        return (
+      }
+      return (
+        <>
           <p>
             You are viewing an off-chain{' '}
             <span className="font-semibold">{`"${certificationData.name}"`}</span>{' '}
@@ -301,18 +305,16 @@ export const CertificationDetails = ({
               Learn more
             </Link>{' '}
             about Certifications by Unlock Labs.{' '}
-            {!account && (
-              <p>
-                Connect your wallet to see if you have received a{' '}
-                <span className="font-semibold">{`"${certificationData.name}"`}</span>{' '}
-                issued by {issuer}.
-              </p>
-            )}
           </p>
-        )
-      }
-    } else {
-      return <p>This is not a valid certificate.</p>
+          {!account && (
+            <p>
+              Connect your wallet to see if you have received a{' '}
+              <span className="font-semibold">{`"${certificationData.name}"`}</span>{' '}
+              issued by {issuer}.
+            </p>
+          )}
+        </>
+      )
     }
   }
 
@@ -356,7 +358,6 @@ export const CertificationDetails = ({
             name={certificationData.name}
             description={
               <>
-                {/* eslint-disable-next-line react/no-children-prop */}
                 <ReactMarkdown>
                   {certificationData?.description as string}
                 </ReactMarkdown>
@@ -365,8 +366,8 @@ export const CertificationDetails = ({
             image={certificationData?.image as string}
             lockAddress={lockAddress}
             badge={
-              isLockManager ? (
-                <span className="text-xl">Here is a preview</span>
+              isPlaceholderData ? (
+                <span className="text-xl">Preview</span>
               ) : undefined
             }
             issuer={issuer}
@@ -398,7 +399,7 @@ export const CertificationDetails = ({
               className="mx-auto"
               variant="outlined-primary"
             >
-              Claim your {certificationData.name} certificate
+              Claim your {certificationData.name} certification
             </Button>
           </div>
         )}

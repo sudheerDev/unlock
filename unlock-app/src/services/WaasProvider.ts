@@ -13,11 +13,12 @@ import EjectionRequest from '~/structured_data/ejectionRequest'
 import { WaasEthersSigner } from '~/utils/waas-sdk-ethers'
 import { ToastHelper } from '~/components/helpers/toast.helper'
 import { getUserWaasUuid } from '~/utils/getUserWaasUuid'
+import { UserAccountType } from '~/utils/userAccountType'
 
 interface WaasProviderOptions {
   provider: ethers.FetchRequest | string
   email: string
-  selectedLoginProvider: string
+  selectedLoginProvider: UserAccountType
   token: string
 }
 
@@ -28,7 +29,7 @@ export default class WaasProvider extends ethers.JsonRpcProvider {
   public wallet: WaasEthersSigner | null
 
   public emailAddress: string
-  private selectedLoginProvider: string
+  private selectedLoginProvider: UserAccountType
   private token: string
 
   // @ts-expect-error Type error: 'isWaas' is declared but its value is never read.
@@ -150,7 +151,7 @@ export default class WaasProvider extends ethers.JsonRpcProvider {
    * @param {string} _ the address to sign it with -- ignored because
    * we use the address in this class.
    */
-  // eslint-disable-next-line no-unused-vars
+
   async personal_sign([data, _]: any[]) {
     try {
       const content = ethers.getBytes(data)

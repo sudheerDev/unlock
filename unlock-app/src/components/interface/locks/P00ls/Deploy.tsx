@@ -1,4 +1,6 @@
-import { useRouter } from 'next/router'
+'use client'
+
+import { useSearchParams } from 'next/navigation'
 import { CreateLockForm } from '../Create/elements/CreateLockForm'
 import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '~/contexts/AuthenticationContext'
@@ -17,33 +19,34 @@ import { Placeholder } from '@unlock-protocol/ui'
 import { Deployed } from './Deployed'
 
 export const Deploy: React.FC = () => {
-  const { query } = useRouter()
+  const searchParams = useSearchParams()
   const { getWalletService, account } = useAuth()
   const [lockAddress, setLockAddress] = useState<string | undefined>(undefined)
 
   const { mutateAsync: updateConfig } = useCheckoutConfigUpdate()
 
-  const { data: locks, isLoading: isLoadingLocks } = useQuery(
-    ['locks', account, query.chainId],
-    async () => {
+  const { data: locks, isPending: isLoadingLocks } = useQuery({
+    queryKey: ['locks', account, searchParams.get('chainId')],
+    queryFn: async () => {
       const locks = await subgraph.locks(
         {
           first: 100,
           where: {
             lockManagers_contains: [account?.toLowerCase()],
-            tokenAddress: query.address?.toString().toLowerCase(),
+            tokenAddress: searchParams.get('address')?.toString().toLowerCase(),
           },
         },
         {
-          networks: [Number(query.chainId)],
+          networks: [Number(searchParams.get('chainId'))],
         }
       )
       return locks
     },
-    {
-      enabled: !!query.chainId && !!account && !!query.address,
-    }
-  )
+    enabled:
+      !!searchParams.get('chainId') &&
+      !!account &&
+      !!searchParams.get('address'),
+  })
 
   useEffect(() => {
     if (locks && locks[0]) {
@@ -61,14 +64,14 @@ export const Deploy: React.FC = () => {
     }) => {
       await locksmith.updateLockMetadata(network, lockAddress, {
         metadata: {
-          image: query.mediaUri?.toString(),
+          image: searchParams.get('mediaUri')?.toString(),
         },
       })
       await updateConfig({
         name: `Checkout Config for P00ls Membership for ${lockAddress}`,
         config: {
-          title: `Buy a membership NFT!`,
-          image: query.mediaUri?.toString(),
+          title: 'Buy a membership NFT!',
+          image: searchParams.get('mediaUri')?.toString(),
           locks: {
             [lockAddress]: {
               network,
@@ -78,7 +81,7 @@ export const Deploy: React.FC = () => {
       })
       setLockAddress(lockAddress)
     },
-    [updateConfig, query.mediaUri]
+    [updateConfig]
   )
 
   const deployLock = useCallback(
@@ -91,7 +94,9 @@ export const Deploy: React.FC = () => {
       keyPrice: string
     }) => {
       const walletService = await getWalletService(values.network)
-      const expirationInSeconds = values.expirationDuration * ONE_DAY_IN_SECONDS
+      const expirationInSeconds = Math.ceil(
+        values.expirationDuration * ONE_DAY_IN_SECONDS
+      )
       const lockAddress = await walletService.createLock(
         {
           name: values.name,
@@ -121,7 +126,9 @@ export const Deploy: React.FC = () => {
     [getWalletService, onLockDeployed]
   )
 
-  const onSubmitMutation = useMutation(deployLock)
+  const onSubmitMutation = useMutation({
+    mutationFn: deployLock,
+  })
 
   return (
     <div>
@@ -158,20 +165,22 @@ export const Deploy: React.FC = () => {
               onSubmit={onSubmitMutation.mutate}
               hideFields={['network', 'currency', 'quantity']}
               defaultValues={{
-                currencyContractAddress: query.address?.toString(),
+                currencyContractAddress: searchParams
+                  .get('address')
+                  ?.toString(),
                 name: 'P00ls Membership',
                 unlimitedQuantity: true,
                 unlimitedDuration: false,
                 isFree: false,
-                network: Number(query.chainId?.toString()),
+                network: Number(searchParams.get('chainId')?.toString()),
               }}
-              isLoading={onSubmitMutation.isLoading}
+              isLoading={onSubmitMutation.isPending}
             />
           )}
           {lockAddress && (
             <Deployed
               lockAddress={lockAddress}
-              network={Number(query.chainId?.toString())}
+              network={Number(searchParams.get('chainId')?.toString())}
             />
           )}
         </div>

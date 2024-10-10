@@ -11,7 +11,6 @@ import { PoweredByUnlock } from '../PoweredByUnlock'
 import { Stepper } from '../Stepper'
 import { TransactionAnimation } from '../Shell'
 import Link from 'next/link'
-import { isEthPassSupported } from '~/services/ethpass'
 import type { Transaction } from './checkoutMachine'
 import { ReturningButton } from '../ReturningButton'
 import { Web3Service } from '@unlock-protocol/unlock-js'
@@ -28,6 +27,7 @@ interface MintingScreenProps {
   network: number
   states?: Record<string, { text: string }>
   pessimistic?: boolean
+  isCompact?: boolean
 }
 
 const DEFAULT_STATES = {
@@ -43,13 +43,13 @@ const DEFAULT_STATES = {
 }
 
 export const MintingScreen = ({
-  lockName,
   mint,
   owner,
   lockAddress,
   network,
   states = DEFAULT_STATES,
   pessimistic = false,
+  isCompact = false,
 }: MintingScreenProps) => {
   const config = useConfig()
   const transactionNetwork = mint.network || network
@@ -78,7 +78,11 @@ export const MintingScreen = ({
           rel="noopener noreferrer"
           className="inline-flex items-center gap-2 text-sm text-brand-ui-primary hover:opacity-75"
         >
-          <p className="text-lg font-bold text-brand-ui-primary inline-flex items-center gap-2">
+          <p
+            className={`text-lg font-bold text-brand-ui-primary inline-flex items-center gap-2 ${
+              isCompact ? 'text-base text-center' : 'text-lg'
+            }`}
+          >
             {/* 
             This is not ideal realization, at least it works
             mint.status === 'FINISHED' before the transaction is confirmed on chan
@@ -101,12 +105,11 @@ export const MintingScreen = ({
           <Icon icon={ExternalLinkIcon} size="small" />
         </Link>
       )}
-      {hasTokenId && isEthPassSupported(transactionNetwork) && (
+      {hasTokenId && (
         <AddToWallet
           network={network}
           lockAddress={lockAddress}
           tokenId={tokenId.toString()}
-          tokenName={lockName}
         />
       )}
     </div>

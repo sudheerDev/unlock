@@ -50,7 +50,7 @@ export const polygon: NetworkConfig = {
         name: 'Discount code',
       },
       {
-        address: '0xa10a55EF6E41dE1267cA8A98010B58a7b6B21418',
+        address: '0x25Ec032F38b87295bA43C825993B9F4E1F4065c9',
         id: HookType.PROMO_CODE_CAPPED,
         name: 'Discount code with caps',
       },
@@ -64,14 +64,15 @@ export const polygon: NetworkConfig = {
   id: 137,
   isTestNetwork: false,
   keyManagerAddress: '0x7111a1aDfbED501beaAd556Bba7cB6dCa3296aa9',
+  kickbackAddress: '0x247a38358c4d99A29091C1cEadfb8a54B783D438',
   maxFreeClaimCost: 100,
   multisig: '0x479f3830fbd715342868BA95E438609BCe443DFB',
   name: 'Polygon',
   nativeCurrency: {
     coingecko: 'matic-network',
     decimals: 18,
-    name: 'Matic',
-    symbol: 'MATIC',
+    name: 'Wrapped Polygon Ecosystem Token',
+    symbol: 'WPOL',
     wrapped: '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270',
   },
   opensea: {
@@ -91,8 +92,8 @@ export const polygon: NetworkConfig = {
   publicProvider: 'https://polygon-rpc.com/',
   startBlock: 21986688,
   subgraph: {
-    endpoint:
-      'https://api.studio.thegraph.com/query/65299/unlock-protocol-polygon/version/latest',
+    endpoint: 'https://subgraph.unlock-protocol.com/137',
+    graphId: '6UrwdJt18yfk4PGzxyeYdH9hUM8PzWvuLbUTKa3T17PD',
     networkName: 'matic',
     studioName: 'unlock-protocol-polygon',
   },
@@ -141,14 +142,20 @@ export const polygon: NetworkConfig = {
     {
       address: '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270',
       decimals: 18,
-      name: 'Wrapped Matic',
-      symbol: 'WMATIC',
+      name: 'Wrapped Polygon Ecosystem Token',
+      symbol: 'WPOL',
     },
     {
       address: '0xE06Bd4F5aAc8D0aA337D13eC88dB6defC6eAEefE',
       decimals: 18,
       name: 'PlanetIX',
       symbol: 'IXT',
+    },
+    {
+      address: '0xf7E78d9C4c74df889A83C8C8d6D05BF70fF75876',
+      decimals: 18,
+      name: 'Unlock Discount Token (PoS)',
+      symbol: 'UDT',
     },
   ],
   uniswapV3: {

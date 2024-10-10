@@ -22,36 +22,39 @@ export const useGetPrice = ({
   const web3Service = useWeb3Service()
   const provider = web3Service.providerForNetwork(network)
 
-  return useQuery(['getPrice', network, hash], async (): Promise<any> => {
-    const tokenAddress =
-      currencyContractAddress === DEFAULT_USER_ACCOUNT_ADDRESS
-        ? undefined
-        : currencyContractAddress
+  return useQuery({
+    queryKey: ['getPrice', network, hash],
+    queryFn: async (): Promise<any> => {
+      const tokenAddress =
+        currencyContractAddress === DEFAULT_USER_ACCOUNT_ADDRESS
+          ? undefined
+          : currencyContractAddress
 
-    const decimals = await getErc20Decimals(tokenAddress ?? '', provider)
-    const total = ethers.formatUnits(`${amount}`, decimals)
+      const decimals = await getErc20Decimals(tokenAddress ?? '', provider)
+      const total = ethers.formatUnits(`${amount}`, decimals)
 
-    const response = await locksmith.price(
-      network,
-      parseFloat(total),
-      tokenAddress
-    )
+      const response = await locksmith.price(
+        network,
+        parseFloat(total),
+        tokenAddress
+      )
 
-    return {
-      usd:
-        parseFloat(
-          (response?.data?.result?.priceInAmount ?? 0)?.toString()
-        ).toFixed(2) || 0,
-      total,
-    }
+      return {
+        usd:
+          parseFloat(
+            (response?.data?.result?.priceInAmount ?? 0)?.toString()
+          ).toFixed(2) || 0,
+        total,
+      }
+    },
   })
 }
 
 interface GetTotalChargesProps {
   lockAddress: string
   network: number
-  recipients: string[]
-  purchaseData: string[]
+  recipients?: string[]
+  purchaseData?: string[]
   enabled?: boolean
 }
 export const useGetTotalCharges = ({
@@ -61,20 +64,35 @@ export const useGetTotalCharges = ({
   recipients,
   enabled = true,
 }: GetTotalChargesProps) => {
-  return useQuery(
-    ['getTotalChargesForLock', lockAddress, network],
-    async () => {
-      const pricing = await locksmith.getChargesForLock(
-        network,
-        lockAddress,
-        purchaseData,
-        recipients
-      )
+  return useQuery({
+    queryKey: [
+      'getTotalChargesForLock',
+      lockAddress,
+      network,
+      recipients,
+      purchaseData,
+    ],
+    queryFn: async () => {
+      if (!recipients || recipients.length === 0) {
+        // Let's add a random recipient to check what would be the "theoretical price"
+        // TODO: this would break if the lock has a hook
+        recipients = [ethers.Wallet.createRandom().address]
+        purchaseData = ['']
+      }
+      if (!purchaseData) {
+        purchaseData = recipients.map(() => '')
+      }
+      const pricing = await locksmith
+        .getChargesForLock(network, lockAddress, purchaseData, recipients)
+        .catch((e) => {
+          if (e.response.status === 400) {
+            return { data: null }
+          }
+          throw e
+        })
 
       return pricing.data
     },
-    {
-      enabled,
-    }
-  )
+    enabled,
+  })
 }

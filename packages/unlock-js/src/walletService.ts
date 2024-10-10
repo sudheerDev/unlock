@@ -40,7 +40,7 @@ interface PurchaseKeysParams {
   erc20Address?: string
   decimals?: number
   referrers?: (string | null)[]
-  recurringPayments?: number[] | string[]
+  recurringPayments?: number[]
   totalApproval?: string
   keyManagers?: string[]
 }
@@ -126,7 +126,7 @@ export default class WalletService extends UnlockService {
    * @param {string} the Unlock protocol transaction type
    * @param {Function} a standard node callback that accepts the transaction hash
    */
-  // eslint-disable-next-line no-underscore-dangle
+
   // TODO: Do we need this???
   async _handleMethodCall(methodCall: any) {
     const transaction = await methodCall
@@ -411,6 +411,32 @@ export default class WalletService extends UnlockService {
   }
 
   /**
+   * Revokes permission to grant keys to an address
+   * @param {*} params
+   * @param {*} callback
+   */
+  async removeKeyGranter(
+    params: {
+      lockAddress: string
+      keyGranter: string
+    },
+    transactionOptions?: TransactionOptions,
+    callback?: WalletServiceCallback
+  ) {
+    if (!params.lockAddress) throw new Error('Missing lockAddress')
+    if (!params.keyGranter) throw new Error('Missing account')
+    const version = await this.lockContractAbiVersion(params.lockAddress)
+    if (!version.removeKeyGranter) {
+      throw new Error('Lock version not supported')
+    }
+    return version.removeKeyGranter.bind(this)(
+      params,
+      transactionOptions,
+      callback
+    )
+  }
+
+  /**
    * Expire and refunds (optional) a key by lock manager
    * @param {*} params
    * @param {*} callback
@@ -491,6 +517,29 @@ export default class WalletService extends UnlockService {
       throw new Error('Lock version not supported')
     }
     return version.shareKey.bind(this)(params, transactionOptions, callback)
+  }
+
+  /**
+   * Lends a key to another address
+   * @param {function} callback : callback invoked with the transaction hash
+   */
+
+  async lendKey(
+    params: {
+      lockAddress: string
+      from: string
+      to: string
+      tokenId: string
+    },
+    transactionOptions?: TransactionOptions,
+    callback?: WalletServiceCallback
+  ) {
+    if (!params.lockAddress) throw new Error('Missing lockAddress')
+    const version = await this.lockContractAbiVersion(params.lockAddress)
+    if (!version.lendKey) {
+      throw new Error('Lock version not supported')
+    }
+    return version.lendKey.bind(this)(params, transactionOptions, callback)
   }
 
   /**

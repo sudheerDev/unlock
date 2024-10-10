@@ -2,7 +2,6 @@ import * as Base64 from '../../src/utils/base64'
 import { generateTypedSignature } from '../../src/utils/signature'
 
 const args = require('yargs').argv
-const request = require('request-promise-native')
 const fs = require('fs')
 const resolve = require('path').resolve
 
@@ -12,16 +11,20 @@ async function updateMetadata(
   endpoint: string
 ) {
   const signature = await generateTypedSignature(privateKey, metadata)
-  const options = {
-    uri: endpoint,
+  const response = await fetch(endpoint, {
     method: 'PUT',
     headers: {
+      'Content-Type': 'application/json',
       Authorization: `Bearer ${Base64.encode(signature)}`,
     },
-    json: metadata,
+    body: JSON.stringify(metadata),
+  })
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`)
   }
 
-  await request(options)
+  return await response.json()
 }
 
 function generateLockMetadataPayload(message: any, messageKey: string) {
@@ -106,6 +109,5 @@ const scope = args.scope
 if (preflightCheck(privateKey, lockAddress, inputFile, host)) {
   main(privateKey, lockAddress, inputFile, host, scope)
 } else {
-  /* eslint-disable no-console */
   console.log('Currently missing required data, please review input')
 }

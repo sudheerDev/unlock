@@ -1,8 +1,8 @@
 import * as Base64 from '../../src/utils/base64'
+
 import { generateTypedSignature } from '../../src/utils/signature'
 
 const args = require('yargs').argv
-const request = require('request-promise-native')
 const fs = require('fs')
 const resolve = require('path').resolve
 
@@ -12,16 +12,20 @@ async function updateMetadata(
   endpoint: string
 ) {
   const signature = await generateTypedSignature(privateKey, metadata)
-  const options = {
-    uri: endpoint,
+  const response = await fetch(endpoint, {
     method: 'PUT',
     headers: {
+      'Content-Type': 'application/json',
       Authorization: `Bearer ${Base64.encode(signature)}`,
     },
-    json: metadata,
+    body: JSON.stringify(metadata),
+  })
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`)
   }
 
-  await request(options)
+  return await response.json()
 }
 
 function generateUserMetadataPayload(message: any, messageKey: string) {
@@ -54,7 +58,7 @@ async function main(
   inputFile: string,
   host: string
 ) {
-  const userAddress = '0xe29ec42f0b620b1c9a716f79a02e9dc5a5f5f98a'
+  const userAddress = '0xe29ec42F0b620b1c9A716f79A02E9DC5A5f5F98a'
   const endpoint = `${host}/api/key/${lockAddress}/user/${userAddress}`
   const contents = fs.readFileSync(resolve(inputFile), 'utf8')
   const message = JSON.parse(contents)
@@ -75,6 +79,5 @@ const inputFile = args.inputFile
 if (preflightCheck(privateKey, lockAddress, inputFile, host)) {
   main(privateKey, lockAddress, inputFile, host)
 } else {
-  /* eslint-disable no-console */
   console.log('Currently missing required data, please review input')
 }

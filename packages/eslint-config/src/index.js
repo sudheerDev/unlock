@@ -1,7 +1,9 @@
-module.exports = {
-  extends: ['./base.js', 'prettier'],
-  rules: {
-    '@next/next/no-img-element': 0,
-    '@next/next/no-html-link-for-pages': 0,
-  },
-}
+const baseConfig = require('./base.js')
+const prettierConfig = require('eslint-config-prettier')
+
+/** @typedef {import('eslint').Linter.Config} ESLintConfig */
+
+/**
+ * @type {ESLintConfig}
+ */
+module.exports = [...baseConfig, prettierConfig]

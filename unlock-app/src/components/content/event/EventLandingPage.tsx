@@ -1,8 +1,8 @@
+'use client'
+
 import { Button } from '@unlock-protocol/ui'
 import Link from 'next/link'
 import { LockTypeLandingPage } from '~/components/interface/LockTypeLandingPage'
-import { useAuth } from '~/contexts/AuthenticationContext'
-import { PastEventsByManager } from './PastEventsByManager'
 import { NextSeo } from 'next-seo'
 import Image from 'next/image'
 
@@ -51,12 +51,6 @@ const customers = [
 
 const features = [
   {
-    image: '/images/illustrations/events/easy.svg',
-    name: 'No-code smart contract deployment',
-    description:
-      'Simply fill up the form and hit the deploy button. All the metadata information will automatically be included in the NFT tickets. You can always add and modify other properties at later date.',
-  },
-  {
     image: '/images/illustrations/events/qr.svg',
     name: 'QR codes and proof of purchase ticketing',
     description:
@@ -68,23 +62,32 @@ const features = [
     description:
       'Volunteers or door staff can check attendees in with just a smartphone, and ensure tickets aren’t transferred or reused once someone has come through the door.',
   },
+  {
+    image: '/images/illustrations/events/imgoing.svg',
+    name: 'Increase attendance rates up to 90%',
+    description:
+      '“I’m Going!” commitment feature requires attendees to stake a small amount of money when RSVPing for free events which they get as a “kickback” if they attend, while no-shows forfeit their commitment.',
+  },
 ]
 
 const problems = [
   {
     image: '/images/illustrations/events/img-stuck.svg',
     name: 'No-code smart contract deployment',
-    description: `Your web3 or crypto event isn't walking the walk, and is using a legacy ticketing solution like Eventbrite, Meetup or Luma instead of embracing the very technology your attendees expect you to champion.`,
+    description:
+      "Your web3 or crypto event isn't walking the walk, and is using a legacy ticketing solution like Eventbrite, Meetup or Luma instead of embracing the very technology your attendees expect you to champion.",
   },
   {
     image: '/images/illustrations/events/img-wallet.svg',
     name: 'QR codes and proof of purchase ticketing',
-    description: `You're losing money on ticket sales because of upsells, hidden fees, and slow payouts from your existing ticketing provider.`,
+    description:
+      "You're losing money on ticket sales because of upsells, hidden fees, and slow payouts from your existing ticketing provider.",
   },
   {
     image: '/images/illustrations/events/img-goodvibe.svg',
     name: 'Check-ins at the venue are a breeze',
-    description: `Your attendees stop engaging the moment the event is over, and are not continuing conversations as an ongoing, connected community.`,
+    description:
+      'Your attendees stop engaging the moment the event is over, and are not continuing conversations as an ongoing, connected community.',
   },
 ]
 
@@ -103,7 +106,9 @@ const faqs = [
           <Link
             className="underline"
             target="_blank"
-            href={`https://docs.unlock-protocol.com/core-protocol/unlock/networks`}
+            href={
+              'https://docs.unlock-protocol.com/core-protocol/unlock/networks'
+            }
           >
             all the networks on which the Unlock Protocol
           </Link>{' '}
@@ -126,29 +131,15 @@ const faqs = [
 
 interface EventLandingPageCallToActionProps {
   handleCreateEvent: () => void
-  showManagerEvents?: boolean
 }
 
 export const EventLandingPageCallToAction = ({
   handleCreateEvent,
-  showManagerEvents = false,
 }: EventLandingPageCallToActionProps) => {
-  const { account } = useAuth()
-
-  if (!account) {
-    return (
-      <Button onClick={handleCreateEvent} className="my-8">
-        Get started for free
-      </Button>
-    )
-  }
   return (
-    <div className="flex flex-col">
-      {showManagerEvents && <PastEventsByManager manager={account} />}
-      <Button onClick={handleCreateEvent} className="my-8">
-        Get started for free
-      </Button>
-    </div>
+    <Button onClick={handleCreateEvent} className="my-8">
+      Get started for free
+    </Button>
   )
 }
 
@@ -183,10 +174,7 @@ export const EventLandingPage = ({ handleCreateEvent }: LandingPageProps) => {
           </h1>
         }
         actions={
-          <EventLandingPageCallToAction
-            handleCreateEvent={handleCreateEvent}
-            showManagerEvents={true}
-          />
+          <EventLandingPageCallToAction handleCreateEvent={handleCreateEvent} />
         }
         illustration={
           <Image
@@ -211,7 +199,8 @@ export const EventLandingPage = ({ handleCreateEvent }: LandingPageProps) => {
         features={features}
         problemSection={{
           title: 'The Problem',
-          subtitle: `Legacy ticketing solutions don't meet the needs of web3 and crypto event organizers`,
+          subtitle:
+            "Legacy ticketing solutions don't meet the needs of web3 and crypto event organizers",
           items: problems,
         }}
         callToAction={{

@@ -38,15 +38,15 @@ const TemplateByLockType: Record<keyof LockType, TemplateProps[]> = {
   ],
   isCertification: [
     {
-      label: 'Certificate key purchased',
+      label: 'Certification key purchased',
       description:
-        'Customize the content of the email sent when a certificate is purchased. Emails are only sent when email is present.',
+        'Customize the content of the email sent when a Certification is purchased. Emails are only sent when email is present.',
       templateId: 'certificationKeyMined',
     },
     {
-      label: 'Certificate key airdropped',
+      label: 'Certification key airdropped',
       description:
-        'Customize the content of the email sent when a certificate is airdropped.',
+        'Customize the content of the email sent when a Certification is airdropped.',
       templateId: 'certificationKeyAirdropped',
     },
   ],
@@ -98,7 +98,9 @@ export const SettingEmail = ({
     <div className="grid grid-cols-1 gap-6">
       <SettingCard
         label="Send Emails"
-        description={`Enable or disable emails sent by Unlock Labs, and set the sender details.`}
+        description={
+          'Enable or disable emails sent by Unlock Labs, and set the sender details.'
+        }
         isLoading={isLoading}
       >
         <SendEmailForm

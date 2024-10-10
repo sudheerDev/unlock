@@ -76,6 +76,7 @@ export const optimism: NetworkConfig = {
   id: 10,
   isTestNetwork: false,
   keyManagerAddress: '0x8c5D54B2CAA4C2D08B0DDF82a1e6D2641779B8EC',
+  kickbackAddress: '0x981e0Ac8ABde773a72FeD793c1BEF99a53fAC342',
   maxFreeClaimCost: 100,
   multisig: '0x6E78b4447e34e751EC181DCBed63633aA753e145',
   name: 'Optimism',
@@ -98,8 +99,8 @@ export const optimism: NetworkConfig = {
   publicProvider: 'https://mainnet.optimism.io',
   startBlock: 302400,
   subgraph: {
-    endpoint:
-      'https://api.studio.thegraph.com/query/65299/unlock-protocol-optimism/version/latest',
+    endpoint: 'https://subgraph.unlock-protocol.com/10',
+    graphId: '8heasZLjiLcTWtLTb7aFdWFe5yYZTgzLZfW76wrnTwrt',
     studioName: 'unlock-protocol-optimism',
   },
   tokens: [
@@ -153,6 +154,12 @@ export const optimism: NetworkConfig = {
       decimals: 8,
       name: 'Wrapped BTC',
       symbol: 'WBTC',
+    },
+    {
+      address: '0xc709c9116dBf29Da9c25041b13a07A0e68aC5d2D',
+      decimals: 18,
+      name: 'Unlock Discount Token',
+      symbol: 'UDT',
     },
   ],
   uniswapV3: {

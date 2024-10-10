@@ -70,6 +70,8 @@ export const arbitrum: NetworkConfig = {
   id: 42161,
   isTestNetwork: false,
   keyManagerAddress: '0x520294E736167303efa038205D4391b58261BC9c',
+  kickbackAddress: '0x62f155229fb60d793440b8c733c4C5937C626c1A',
+
   maxFreeClaimCost: 100,
   multisig: '0x310e9f9E3918a71dB8230cFCF32a083c7D9536d0',
   name: 'Arbitrum',
@@ -92,8 +94,8 @@ export const arbitrum: NetworkConfig = {
   publicProvider: 'https://arb1.arbitrum.io/rpc',
   startBlock: 17429533,
   subgraph: {
-    endpoint:
-      'https://api.studio.thegraph.com/query/65299/unlock-protocol-arbitrum/version/latest',
+    endpoint: 'https://subgraph.unlock-protocol.com/42161',
+    graphId: '9DNHi5TyZkxrAcnmmefRRTDHXDAwKQk7BifVY2FeTTFp',
     networkName: 'arbitrum-one',
     studioName: 'unlock-protocol-arbitrum',
   },
@@ -144,6 +146,12 @@ export const arbitrum: NetworkConfig = {
       decimals: 18,
       name: 'Arbitrum',
       symbol: 'ARB',
+    },
+    {
+      address: '0xd5d3aA404D7562d09a848F96a8a8d5D65977bF90',
+      decimals: 18,
+      name: 'Unlock Discount Token',
+      symbol: 'UDT',
     },
   ],
   uniswapV3: {

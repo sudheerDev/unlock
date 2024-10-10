@@ -59,14 +59,17 @@ export const UpdateQuantityForm = ({
     } as any)
   }
 
-  const updateQuantityMutation = useMutation(updateQuantity)
+  const updateQuantityMutation = useMutation({
+    mutationFn: updateQuantity,
+  })
 
   const onHandleSubmit = async () => {
     if (isValid) {
       await ToastHelper.promise(updateQuantityMutation.mutateAsync(), {
         loading: 'Updating quantity...',
         success: 'Quantity updated',
-        error: `We could not update the amount of memberships for sale for this lock.`,
+        error:
+          'We could not update the amount of memberships for sale for this lock.',
       })
     } else {
       ToastHelper.error('Form is not valid')
@@ -77,7 +80,7 @@ export const UpdateQuantityForm = ({
   const defaultMaxNumberOfKeys =
     maxNumberOfKeys == UNLIMITED_KEYS_COUNT ? '' : maxNumberOfKeys
 
-  const disabledInput = disabled || updateQuantityMutation.isLoading
+  const disabledInput = disabled || updateQuantityMutation.isPending
   return (
     <form
       className="flex flex-col gap-6 text-left"
@@ -133,7 +136,7 @@ export const UpdateQuantityForm = ({
           type="submit"
           className="w-full md:w-1/3"
           disabled={disabledInput}
-          loading={updateQuantityMutation.isLoading}
+          loading={updateQuantityMutation.isPending}
         >
           Update
         </Button>

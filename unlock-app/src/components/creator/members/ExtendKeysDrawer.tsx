@@ -100,7 +100,9 @@ const ExtendKeyDurationForm = ({
     )
   }
 
-  const extendKeyMutation = useMutation(onExtendKeys)
+  const extendKeyMutation = useMutation({
+    mutationFn: onExtendKeys,
+  })
 
   const onExtendDuration = async () => {
     const isFormValid = await trigger()
@@ -125,7 +127,7 @@ const ExtendKeyDurationForm = ({
       }
 
       if (typeof extendDuration === 'number' && extendDuration < 0) {
-        return ToastHelper.error(`The expiration date can't be pulled back.`)
+        return ToastHelper.error("The expiration date can't be pulled back.")
       }
 
       if (
@@ -145,12 +147,12 @@ const ExtendKeyDurationForm = ({
         onComplete()
         reset(defaultValues)
       } else {
-        ToastHelper.error(`Expiration date can't be in the past`)
+        ToastHelper.error("Expiration date can't be in the past")
       }
     }
   }
   const { neverExpires } = getValues()
-  const loading = extendKeyMutation.isLoading
+  const loading = extendKeyMutation.isPending
 
   return (
     <form
@@ -187,9 +189,9 @@ const ExtendKeyDurationForm = ({
       <Button
         disabled={!isDirty || loading}
         type="submit"
-        loading={extendKeyMutation.isLoading}
+        loading={extendKeyMutation.isPending}
       >
-        {!extendKeyMutation.isLoading
+        {!extendKeyMutation.isPending
           ? 'Extend key duration'
           : 'Extend key duration...'}
       </Button>

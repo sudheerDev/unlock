@@ -1,16 +1,38 @@
-import { useRouter } from 'next/router'
-import React from 'react'
+'use client'
+
+import { useSearchParams } from 'next/navigation'
+
 import { useAuth } from '~/contexts/AuthenticationContext'
+
 import { WalletNotConnected } from '../../layouts/AppLayout'
+
 import { LockList } from './elements/LockList'
+
+import { Placeholder } from '@unlock-protocol/ui'
 
 export const LocksListPage = () => {
   const { network, account } = useAuth()
-  const { query } = useRouter()
-  const { account: manager } = query
 
-  // show lock for the specific manager if present in query parameters
-  const locksOwner = manager ?? account!
+  const searchParams = useSearchParams()
+
+  const manager = searchParams.get('account')
+
+  // show lock for the specific manager if present in query parameters and ensure account is defined before using it
+
+  const locksOwner = manager ?? account
+
+  if (!network || !locksOwner) {
+    return (
+      <Placeholder.Root>
+        <Placeholder.Card />
+        <Placeholder.Card />
+        <Placeholder.Card />
+        <Placeholder.Card />
+        <Placeholder.Card />
+        <Placeholder.Card />
+      </Placeholder.Root>
+    )
+  }
 
   return (
     <>

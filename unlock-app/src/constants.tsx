@@ -1,4 +1,3 @@
-/* eslint import/prefer-default-export: 0 */ // This file does not have a default export
 import { ethers } from 'ethers'
 
 export const EMAIL_SUBSCRIPTION_FORM = {
@@ -76,7 +75,7 @@ export const WALLET_ENCRYPTION_OPTIONS = {
     // web3 used 1 << 13, ethers default is 1 << 18. We want speedy wallet
     // decryption, and Unlock accounts should hold no currency so this tradeoff
     // is acceptable.
-    // eslint-disable-next-line no-bitwise
+
     N: 1 << 13,
   },
 }

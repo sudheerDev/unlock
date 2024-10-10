@@ -1,3 +1,5 @@
+'use client'
+
 import { Button } from '@unlock-protocol/ui'
 import { useConfig } from '~/utils/withConfig'
 import { LockFormProps } from './CreateLockForm'
@@ -6,7 +8,7 @@ import Link from 'next/link'
 import { useWeb3Service } from '~/utils/withWeb3Service'
 import { useQuery } from '@tanstack/react-query'
 import { KeyPrice } from '../../elements/KeyPrice'
-import Lottie from 'lottie-react'
+import dynamic from 'next/dynamic'
 import deployedAnimation from '~/animations/deployed.json'
 import deployingAnimation from '~/animations/deploying.json'
 import deployErrorAnimation from '~/animations/deploy-error.json'
@@ -14,6 +16,8 @@ import { durationsAsTextFromSeconds } from '~/utils/durations'
 import { ONE_DAY_IN_SECONDS } from '~/constants'
 import { useAuth } from '~/contexts/AuthenticationContext'
 import { subgraph } from '~/config/subgraph'
+
+const Lottie = dynamic(() => import('lottie-react'), { ssr: false })
 
 interface DeployStatusProps {
   title: string
@@ -59,7 +63,7 @@ const DEPLOY_STATUS_MAPPING: Record<DeployStatus, DeployStatusProps> = {
 }
 
 export function AnimationContent({ status }: { status: DeployStatus }) {
-  const animationClass = `h-60 md:h-96`
+  const animationClass = 'h-60 md:h-96'
   switch (status) {
     case 'progress':
       return (
@@ -116,16 +120,12 @@ export const CreateLockFormSummary = ({
     return { ...tx, confirmations }
   }
 
-  const { data, isError } = useQuery(
-    ['getTransactionDetails', transactionHash, network],
-    () => {
-      return getTransactionDetails(transactionHash!)
-    },
-    {
-      enabled: !!transactionHash,
-      refetchInterval: 5000,
-    }
-  )
+  const { data, isError } = useQuery({
+    queryKey: ['getTransactionDetails', transactionHash, network],
+    queryFn: () => getTransactionDetails(transactionHash!),
+    enabled: !!transactionHash,
+    refetchInterval: 5000,
+  })
 
   const hasError = isError && data
   const isDeployed =
@@ -139,10 +139,10 @@ export const CreateLockFormSummary = ({
       )
     : null
 
-  const { data: subgraphLock } = useQuery(
-    ['getLockFromSubgraph', transactionHash, lockAddress, network],
-    () => {
-      const subgraphLock = subgraph.lock(
+  const { data: subgraphLock } = useQuery({
+    queryKey: ['getLockFromSubgraph', transactionHash, lockAddress, network],
+    queryFn: () => {
+      return subgraph.lock(
         {
           where: {
             address: lockAddress,
@@ -150,16 +150,10 @@ export const CreateLockFormSummary = ({
         },
         { network: network! }
       )
-      if (subgraphLock) {
-        return subgraphLock
-      }
-      return null
     },
-    {
-      enabled: !!lockAddress && !!network,
-      refetchInterval: 1000,
-    }
-  )
+    enabled: !!lockAddress && !!network,
+    refetchInterval: 1000,
+  })
 
   const currentStatus: DeployStatus = hasError
     ? 'txError'

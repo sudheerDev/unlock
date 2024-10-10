@@ -71,6 +71,7 @@ export const base: NetworkConfig = {
   id: 8453,
   isTestNetwork: false,
   keyManagerAddress: '0xD26c05a33349a6DeD02DD9360e1ef303d1246fb6',
+  kickbackAddress: '0xCf5802682F194C2447E92a63283471A99CB792f6',
   maxFreeClaimCost: 100,
   multisig: '0x8149FeaFa41DD1ee3CA62299b9c67e9ac12FA340',
   name: 'Base',
@@ -99,8 +100,8 @@ export const base: NetworkConfig = {
 
   startBlock: 1750000,
   subgraph: {
-    endpoint:
-      'https://api.studio.thegraph.com/query/65299/unlock-protocol-base/version/latest',
+    endpoint: 'https://subgraph.unlock-protocol.com/8453',
+    graphId: 'ECQhJQV8KWMfAAgWf8WV5duy1si9TnZpL4f194oGLrWW',
     networkName: 'base',
     studioName: 'unlock-protocol-base',
   },
@@ -136,6 +137,18 @@ export const base: NetworkConfig = {
       decimals: 18,
       name: 'Degen',
       symbol: 'DEGEN',
+    },
+    {
+      address: '0xaC27fa800955849d6D17cC8952Ba9dD6EAA66187',
+      decimals: 18,
+      name: 'UnlockProtocolToken',
+      symbol: 'UP',
+    },
+    {
+      address: '0xD7eA82D19f1f59FF1aE95F1945Ee6E6d86A25B96',
+      decimals: 18,
+      name: 'Unlock Discount Token',
+      symbol: 'UDT',
     },
   ],
   uniswapV3: {

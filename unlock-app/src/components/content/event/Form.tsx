@@ -1,7 +1,7 @@
 import { FaRegLightbulb } from 'react-icons/fa'
 import { usePlacesWidget } from 'react-google-autocomplete'
 import { config } from '~/config/app'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Lock, Token } from '@unlock-protocol/types'
 import { BsArrowLeft as ArrowBackIcon } from 'react-icons/bs'
 import { BiLogoZoom as ZoomIcon } from 'react-icons/bi'
@@ -16,11 +16,10 @@ import {
   ToggleSwitch,
   ImageUpload,
   Checkbox,
-  CurrencyHint,
 } from '@unlock-protocol/ui'
 import { useConfig } from '~/utils/withConfig'
 import { useAuth } from '~/contexts/AuthenticationContext'
-import { networkDescription } from '~/components/interface/locks/Create/elements/CreateLockForm'
+import { NetworkDescription } from '~/components/interface/locks/Create/elements/CreateLockForm'
 import { useQuery } from '@tanstack/react-query'
 import { useWeb3Service } from '~/utils/withWeb3Service'
 import { BalanceWarning } from '~/components/interface/locks/Create/elements/BalanceWarning'
@@ -30,9 +29,11 @@ import { UNLIMITED_KEYS_DURATION } from '~/constants'
 import { CryptoIcon } from '@unlock-protocol/crypto-icon'
 import { useImageUpload } from '~/hooks/useImageUpload'
 import dayjs from 'dayjs'
-import { useRouter } from 'next/router'
+import { useRouter } from 'next/navigation'
 import { useAvailableNetworks } from '~/utils/networks'
 import Link from 'next/link'
+import { regexUrlPattern } from '~/utils/regexUrlPattern'
+import { ProtocolFee } from '~/components/interface/locks/Create/elements/ProtocolFee'
 
 // TODO replace with zod, but only once we have replaced Lock and MetadataFormData as well
 export interface NewEventForm {
@@ -43,7 +44,7 @@ export interface NewEventForm {
 }
 
 interface GoogleMapsAutoCompleteProps {
-  onChange: (value: string) => void
+  onChange: (address: string, location: string, timezone: string) => void
   defaultValue?: string
 }
 
@@ -51,18 +52,32 @@ export const GoogleMapsAutoComplete = ({
   onChange,
   defaultValue,
 }: GoogleMapsAutoCompleteProps) => {
+  const onPlaceSelected = async (place: any, inputRef: any) => {
+    const lat = place.geometry?.location?.lat()
+    const lng = place.geometry?.location?.lng()
+
+    //  We use a dedicated API key because this Timezone API  does not support restricting by referrers as of Sept 2024
+    const timezoneInfo = await fetch(
+      `https://maps.googleapis.com/maps/api/timezone/json?location=${lat}%2C${lng}&timestamp=${Math.floor(new Date().getTime() / 1000)}&key=AIzaSyB7AMd20omjPeJRS2rDBbq8HKZIoRZQD_o`
+    ).then((response) => response.json())
+
+    if (place.formatted_address) {
+      return onChange(
+        inputRef.value,
+        place.formatted_address,
+        timezoneInfo.timeZoneId
+      )
+    }
+    return onChange(inputRef.value, inputRef.value, timezoneInfo.timeZoneId)
+  }
+
   const { ref } = usePlacesWidget({
     options: {
       types: [],
     },
     apiKey: config.googleMapsApiKey,
-    onPlaceSelected: (place, inputRef) => {
-      if (place.formatted_address) {
-        // @ts-expect-error Property 'value' does not exist on type 'RefObject<HTMLInputElement>'.ts(2339)
-        return onChange(`${inputRef.value}, ${place.formatted_address}`)
-      }
-      // @ts-expect-error Property 'value' does not exist on type 'RefObject<HTMLInputElement>'.ts(2339)
-      return onChange(inputRef.value)
+    onPlaceSelected: (place: any, inputRef: any) => {
+      onPlaceSelected(place, inputRef)
     },
   })
 
@@ -79,9 +94,10 @@ export const GoogleMapsAutoComplete = ({
 
 interface FormProps {
   onSubmit: (data: NewEventForm) => void
+  compact?: boolean
 }
 
-export const Form = ({ onSubmit }: FormProps) => {
+export const Form = ({ onSubmit, compact = false }: FormProps) => {
   const [oldMaxNumberOfKeys, setOldMaxNumberOfKeys] = useState<number>(0)
   const { networks } = useConfig()
   const { account } = useAuth()
@@ -91,7 +107,7 @@ export const Form = ({ onSubmit }: FormProps) => {
   const [attendeeRefund, setAttendeeRefund] = useState(false)
   const [isFree, setIsFree] = useState(true)
   const [isCurrencyModalOpen, setCurrencyModalOpen] = useState(false)
-  const { mutateAsync: uploadImage, isLoading: isUploading } = useImageUpload()
+  const { mutateAsync: uploadImage, isPending: isUploading } = useImageUpload()
 
   const web3Service = useWeb3Service()
 
@@ -121,7 +137,9 @@ export const Form = ({ onSubmit }: FormProps) => {
           event_end_date: today,
           event_end_time: '',
           event_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          event_is_in_person: true,
           event_address: '',
+          event_location: '',
         },
         image: '',
         requiresApproval: false,
@@ -136,6 +154,8 @@ export const Form = ({ onSubmit }: FormProps) => {
     trigger,
     setValue,
     getValues,
+    setError,
+    clearErrors,
     formState: { errors },
     watch,
   } = methods
@@ -143,21 +163,21 @@ export const Form = ({ onSubmit }: FormProps) => {
     control,
   })
 
-  const mapAddress = `https://www.google.com/maps/embed/v1/place?q=${encodeURIComponent(
-    details.metadata?.ticket?.event_address || 'Ethereum'
-  )}&key=${config.googleMapsApiKey}`
+  const [mapAddress, setMapAddress] = useState(
+    encodeURIComponent(getValues('metadata.ticket.event_address') || 'Ethereum')
+  )
 
-  const { isLoading: isLoadingBalance, data: balance } = useQuery(
-    ['getBalance', account, details.network],
-    async () => {
+  const { isPending: isLoadingBalance, data: balance } = useQuery({
+    queryKey: ['getBalance', account, details.network],
+    queryFn: async () => {
       if (!details.network) {
         return 1.0
       }
       return parseFloat(
         await web3Service.getAddressBalance(account!, details.network!)
       )
-    }
-  )
+    },
+  })
 
   const noBalance = balance === 0 && !isLoadingBalance
 
@@ -175,6 +195,7 @@ export const Form = ({ onSubmit }: FormProps) => {
   const router = useRouter()
 
   const [currencyNetwork, setCurrencyNetwork] = useState<string>()
+  const [kickbackSupported, setKickBackSupported] = useState<boolean>(false)
 
   register('metadata.image', {
     required: {
@@ -199,20 +220,34 @@ export const Form = ({ onSubmit }: FormProps) => {
     onSubmit(values)
   }
 
+  const [kickbackDisabled, setKickbackDisabled] = useState<boolean>(false)
+  useEffect(() => {
+    if (isFree || !kickbackSupported) {
+      setKickbackDisabled(true)
+      setAttendeeRefund(false)
+    } else {
+      setKickbackDisabled(false)
+    }
+  }, [isFree, details.lock?.keyPrice, kickbackSupported])
+
   return (
     <FormProvider {...methods}>
-      <div className="grid grid-cols-[50px_1fr_50px] items-center mb-4">
-        <Button variant="borderless" aria-label="arrow back">
-          <ArrowBackIcon
-            size={20}
-            className="cursor-pointer"
-            onClick={() => router.back()}
-          />
-        </Button>
-        <h1 className="text-xl font-bold text-center text-brand-dark">
-          Creating your Event
-        </h1>
-      </div>
+      {!compact && (
+        <div
+          className={`grid ${compact ? '' : 'grid-cols-[50px_1fr_50px]'} items-center mb-4`}
+        >
+          <Button variant="borderless" aria-label="arrow back">
+            <ArrowBackIcon
+              size={20}
+              className="cursor-pointer"
+              onClick={() => router.back()}
+            />
+          </Button>
+          <h1 className="text-xl font-bold text-center text-brand-dark">
+            Creating your Event
+          </h1>
+        </div>
+      )}
 
       <form className="mb-6" onSubmit={methods.handleSubmit(processAndSubmit)}>
         <div className="grid gap-6">
@@ -221,8 +256,10 @@ export const Form = ({ onSubmit }: FormProps) => {
               All of these fields can also be adjusted later.
             </p>
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div className="order-2 md:order-1">
+            <div
+              className={`grid grid-cols-1 gap-4 ${compact ? '' : 'md:grid-cols-2'}`}
+            >
+              <div className={`order-2 ${compact ? '' : 'md:order-1'}`}>
                 <ImageUpload
                   description="This illustration will be used for your event page, as well as the NFT tickets by default. Use 512 by 512 pixels for best results."
                   isUploading={isUploading}
@@ -243,7 +280,9 @@ export const Form = ({ onSubmit }: FormProps) => {
                   error={errors.metadata?.image?.message as string}
                 />
               </div>
-              <div className="grid order-1 gap-4 md:order-2">
+              <div
+                className={`grid order-1 gap-4 ${compact ? '' : 'md:order-2'}`}
+              >
                 <Input
                   {...register('lock.name', {
                     required: {
@@ -295,6 +334,7 @@ export const Form = ({ onSubmit }: FormProps) => {
                       networks[newValue].nativeCurrency.symbol
                     )
                     setCurrencyNetwork(networks[newValue].name)
+                    setKickBackSupported(!!networks[newValue].kickbackAddress)
                   }}
                   options={networkOptions}
                   moreOptions={moreNetworkOptions}
@@ -302,11 +342,9 @@ export const Form = ({ onSubmit }: FormProps) => {
                   defaultValue={network}
                   description={
                     <div className="flex flex-col gap-2">
-                      <p>
-                        {details.network && (
-                          <>{networkDescription(details.network)}</>
-                        )}
-                      </p>
+                      {details.network && (
+                        <NetworkDescription network={details.network} />
+                      )}
                       <p>
                         This is the network on which your ticketing contract
                         will be deployed.{' '}
@@ -323,6 +361,7 @@ export const Form = ({ onSubmit }: FormProps) => {
                   }
                 />
                 <NetworkWarning network={details.network} />
+
                 <div className="mb-4">
                   {noBalance && (
                     <BalanceWarning
@@ -341,14 +380,18 @@ export const Form = ({ onSubmit }: FormProps) => {
                 This information will be public and included on each of the NFT
                 tickets. Again, it can be adjusted later.
               </p>
-              <div className="grid items-center gap-4 align-top sm:grid-cols-2">
+              <div
+                className={`grid items-center gap-4 align-top ${compact ? '' : 'sm:grid-cols-2'}`}
+              >
                 <div className="flex flex-col self-start gap-4 justify-top">
                   <div className="h-80">
                     {isInPerson && (
                       <iframe
                         width="100%"
                         height="350"
-                        src={mapAddress}
+                        src={`https://www.google.com/maps/embed/v1/place?q=${encodeURIComponent(
+                          mapAddress
+                        )}&key=${config.googleMapsApiKey}`}
                       ></iframe>
                     )}
                     {!isInPerson && (
@@ -358,113 +401,9 @@ export const Form = ({ onSubmit }: FormProps) => {
                     )}
                   </div>
                 </div>
-                <div className="flex flex-col self-start gap-2 justify-top">
-                  <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                    <Input
-                      {...register('metadata.ticket.event_start_date', {
-                        required: {
-                          value: true,
-                          message: 'Add a start date to your event',
-                        },
-                      })}
-                      onChange={(evt: React.ChangeEvent<HTMLInputElement>) => {
-                        if (
-                          !details.metadata?.ticket?.event_end_date ||
-                          new Date(details.metadata?.ticket?.event_end_date) <
-                            new Date(evt.target.value)
-                        ) {
-                          setValue(
-                            'metadata.ticket.event_end_date',
-                            evt.target.value
-                          )
-                          setValue('metadata.ticket.event_start_time', '12:00')
-                        }
-                      }}
-                      min={today}
-                      type="date"
-                      label="Start date"
-                      error={
-                        // @ts-expect-error Property 'event_start_date' does not exist on type 'FieldError | Merge<FieldError, FieldErrorsImpl<any>>'.
-                        errors.metadata?.ticket?.event_start_date?.message || ''
-                      }
-                    />
-                    <Input
-                      {...register('metadata.ticket.event_start_time', {})}
-                      type="time"
-                      label="Start time"
-                      error={
-                        // @ts-expect-error Property 'event_start_time' does not exist on type 'FieldError | Merge<FieldError, FieldErrorsImpl<any>>'.
-                        errors.metadata?.ticket?.event_start_time?.message || ''
-                      }
-                      onChange={(evt: React.ChangeEvent<HTMLInputElement>) => {
-                        if (!details.metadata?.ticket?.event_end_time) {
-                          setValue(
-                            'metadata.ticket.event_end_time',
-                            evt.target.value
-                          )
-                        }
-                      }}
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                    <Input
-                      {...register('metadata.ticket.event_end_date', {
-                        required: {
-                          value: true,
-                          message: 'Add a end date to your event',
-                        },
-                      })}
-                      type="date"
-                      min={minEndDate}
-                      label="End date"
-                      error={
-                        // @ts-expect-error Property 'event_start_date' does not exist on type 'FieldError | Merge<FieldError, FieldErrorsImpl<any>>'.
-                        errors.metadata?.ticket?.event_end_date?.message || ''
-                      }
-                    />
-                    <Input
-                      {...register('metadata.ticket.event_end_time', {})}
-                      type="time"
-                      min={minEndTime}
-                      label="End time"
-                      error={
-                        // @ts-expect-error Property 'event_end_time' does not exist on type 'FieldError | Merge<FieldError, FieldErrorsImpl<any>>'.
-                        errors.metadata?.ticket?.event_end_time?.message || ''
-                      }
-                    />
-                  </div>
-
-                  <Controller
-                    name="metadata.ticket.event_timezone"
-                    control={control}
-                    render={({ field: { onChange, value } }) => {
-                      return (
-                        <Select
-                          onChange={(newValue) => {
-                            onChange({
-                              target: {
-                                value: newValue,
-                              },
-                            })
-                          }}
-                          // @ts-expect-error supportedValuesOf
-                          options={Intl.supportedValuesOf('timeZone').map(
-                            (tz: string) => {
-                              return {
-                                value: tz,
-                                label: tz,
-                              }
-                            }
-                          )}
-                          label="Timezone"
-                          defaultValue={value}
-                        />
-                      )
-                    }}
-                  />
-
-                  <div className="mt-6">
+                <div className="flex flex-col gap-4 self-start">
+                  {/* Location */}
+                  <div className="flex flex-col gap-0">
                     <div className="flex items-center justify-between">
                       <label className="px-1 mb-2 text-base" htmlFor="">
                         Location
@@ -473,27 +412,185 @@ export const Form = ({ onSubmit }: FormProps) => {
                         title="In person"
                         enabled={isInPerson}
                         setEnabled={setIsInPerson}
-                        onChange={() => {
+                        onChange={(enabled) => {
+                          setValue(
+                            'metadata.ticket.event_is_in_person',
+                            enabled
+                          )
                           // reset the value
                           setValue('metadata.ticket.event_address', undefined)
+
+                          if (!enabled) {
+                            setError('metadata.ticket.event_address', {
+                              type: 'manual',
+                              message: 'Please enter a valid URL',
+                            })
+                          } else {
+                            clearErrors('metadata.ticket.event_address')
+                          }
                         }}
                       />
                     </div>
 
                     {!isInPerson && (
                       <Input
-                        {...register('metadata.ticket.event_address')}
+                        {...register('metadata.ticket.event_address', {
+                          required: {
+                            value: true,
+                            message: 'Add a link to your event',
+                          },
+                        })}
+                        onChange={(event) => {
+                          if (!regexUrlPattern.test(event.target.value)) {
+                            setError('metadata.ticket.event_address', {
+                              type: 'manual',
+                              message: 'Please enter a valid URL',
+                            })
+                          } else {
+                            clearErrors('metadata.ticket.event_address')
+                          }
+                        }}
                         type="text"
                         placeholder={'Zoom or Google Meet Link'}
+                        error={
+                          // @ts-expect-error Property 'event_address' does not exist on type 'FieldError | Merge<FieldError, FieldErrorsImpl<any>>'.
+                          errors.metadata?.ticket?.event_address
+                            ?.message as string
+                        }
                       />
                     )}
 
                     {isInPerson && (
+                      <GoogleMapsAutoComplete
+                        defaultValue={mapAddress}
+                        onChange={(address, location, timezone) => {
+                          setValue('metadata.ticket.event_address', address)
+                          setValue('metadata.ticket.event_location', location)
+                          setValue('metadata.ticket.event_timezone', timezone)
+                          setMapAddress(address)
+                        }}
+                      />
+                    )}
+                  </div>
+
+                  {/* Date */}
+                  <div className="flex flex-col gap-2">
+                    <div
+                      className={`grid grid-cols-1 gap-2 ${compact ? '' : 'lg:grid-cols-2'}`}
+                    >
+                      <Input
+                        {...register('metadata.ticket.event_start_date', {
+                          required: {
+                            value: true,
+                            message: 'Add a start date to your event',
+                          },
+                        })}
+                        onChange={(
+                          evt: React.ChangeEvent<HTMLInputElement>
+                        ) => {
+                          if (
+                            !details.metadata?.ticket?.event_end_date ||
+                            new Date(details.metadata?.ticket?.event_end_date) <
+                              new Date(evt.target.value)
+                          ) {
+                            setValue(
+                              'metadata.ticket.event_end_date',
+                              evt.target.value
+                            )
+                            setValue(
+                              'metadata.ticket.event_start_time',
+                              '12:00'
+                            )
+                          }
+                        }}
+                        min={today}
+                        type="date"
+                        label="Start date"
+                        error={
+                          // @ts-expect-error Property 'event_start_date' does not exist on type 'FieldError | Merge<FieldError, FieldErrorsImpl<any>>'.
+                          errors.metadata?.ticket?.event_start_date?.message ||
+                          ''
+                        }
+                      />
+                      <Input
+                        {...register('metadata.ticket.event_start_time', {})}
+                        type="time"
+                        label="Start time"
+                        error={
+                          // @ts-expect-error Property 'event_start_time' does not exist on type 'FieldError | Merge<FieldError, FieldErrorsImpl<any>>'.
+                          errors.metadata?.ticket?.event_start_time?.message ||
+                          ''
+                        }
+                        onChange={(
+                          evt: React.ChangeEvent<HTMLInputElement>
+                        ) => {
+                          if (!details.metadata?.ticket?.event_end_time) {
+                            setValue(
+                              'metadata.ticket.event_end_time',
+                              evt.target.value
+                            )
+                          }
+                        }}
+                      />
+                    </div>
+
+                    <div
+                      className={`grid grid-cols-1 gap-2 ${compact ? '' : 'lg:grid-cols-2'}`}
+                    >
+                      <Input
+                        {...register('metadata.ticket.event_end_date', {
+                          required: {
+                            value: true,
+                            message: 'Add a end date to your event',
+                          },
+                        })}
+                        type="date"
+                        min={minEndDate}
+                        label="End date"
+                        error={
+                          // @ts-expect-error Property 'event_start_date' does not exist on type 'FieldError | Merge<FieldError, FieldErrorsImpl<any>>'.
+                          errors.metadata?.ticket?.event_end_date?.message || ''
+                        }
+                      />
+                      <Input
+                        {...register('metadata.ticket.event_end_time', {})}
+                        type="time"
+                        min={minEndTime}
+                        label="End time"
+                        error={
+                          // @ts-expect-error Property 'event_end_time' does not exist on type 'FieldError | Merge<FieldError, FieldErrorsImpl<any>>'.
+                          errors.metadata?.ticket?.event_end_time?.message || ''
+                        }
+                      />
+                    </div>
+
+                    {!isInPerson && (
                       <Controller
-                        name="metadata.ticket.event_address"
+                        name="metadata.ticket.event_timezone"
                         control={control}
-                        render={({ field: { onChange } }) => {
-                          return <GoogleMapsAutoComplete onChange={onChange} />
+                        render={({ field: { onChange, value } }) => {
+                          return (
+                            <Select
+                              onChange={(newValue) => {
+                                onChange({
+                                  target: {
+                                    value: newValue,
+                                  },
+                                })
+                              }}
+                              // @ts-expect-error supportedValuesOf
+                              options={Intl.supportedValuesOf('timeZone').map(
+                                (tz: string) => {
+                                  return {
+                                    value: tz,
+                                    label: tz,
+                                  }
+                                }
+                              )}
+                              label="Timezone"
+                              defaultValue={value}
+                            />
+                          )
                         }}
                       />
                     )}
@@ -504,7 +601,9 @@ export const Form = ({ onSubmit }: FormProps) => {
           </Disclosure>
 
           <Disclosure label="Organizer" defaultOpen>
-            <div className="grid md:grid-cols-2 gap-2 justify-items-stretch">
+            <div
+              className={`grid ${compact ? '' : 'md:grid-cols-2'} gap-2 justify-items-stretch`}
+            >
               <Input
                 {...register('metadata.emailSender', {
                   required: {
@@ -530,7 +629,7 @@ export const Form = ({ onSubmit }: FormProps) => {
                 autoComplete="off"
                 placeholder="your@email.com"
                 error={errors.metadata?.replyTo?.message as string}
-                description={`Used when users respond to automated emails.`}
+                description={'Used when users respond to automated emails.'}
               />
             </div>
           </Disclosure>
@@ -623,12 +722,12 @@ export const Form = ({ onSubmit }: FormProps) => {
                     </div>
                   </div>
 
-                  <CurrencyHint network={currencyNetwork as string} />
+                  <ProtocolFee network={Number(details.network)} />
 
                   <div className="text-sm mt-2 flex items-center justify-between">
                     <Checkbox
-                      disabled={isFree || !details.lock?.keyPrice}
-                      label="Treat the price as a deposit which will be refunded when attendees check in at the event (not applicable to credit cards)."
+                      disabled={kickbackDisabled}
+                      label={`Treat the price as a deposit which will be refunded when attendees check in at the event (not applicable to credit cards). ${!kickbackSupported ? `This feature is not supported on ${currencyNetwork}.` : ''}`}
                       checked={attendeeRefund}
                       onChange={(
                         event: React.ChangeEvent<HTMLInputElement>

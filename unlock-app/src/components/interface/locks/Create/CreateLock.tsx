@@ -1,6 +1,8 @@
+'use client'
+
 import { networks } from '@unlock-protocol/networks'
 import { Button } from '@unlock-protocol/ui'
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { ToastHelper } from '~/components/helpers/toast.helper'
 import {
@@ -12,7 +14,7 @@ import { useAuth } from '~/contexts/AuthenticationContext'
 import { CreateLockForm, LockFormProps } from './elements/CreateLockForm'
 import { CreateLockFormSummary } from './elements/CreateLockFormSummary'
 import { BsArrowLeft as ArrowBack } from 'react-icons/bs'
-import { useRouter } from 'next/router'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
 export type Step = 'data' | 'summary' | 'deploy'
@@ -67,13 +69,8 @@ export const CreateLockSteps = () => {
     changeStep('summary', data)
   }
 
-  const onSummarySubmit = async (data: LockFormProps) => {
-    const address = await createLockMutation.mutateAsync(data)
-    setLockAddress(address)
-  }
-
-  const createLockMutation = useMutation(
-    async ({
+  const createLockMutation = useMutation({
+    mutationFn: async ({
       name,
       unlimitedDuration,
       unlimitedQuantity,
@@ -84,8 +81,9 @@ export const CreateLockSteps = () => {
       network,
     }: LockFormProps) => {
       const walletService = await getWalletService(network)
-      const expirationInSeconds =
+      const expirationInSeconds = Math.ceil(
         (expirationDuration as number) * ONE_DAY_IN_SECONDS
+      )
       const lockAddress = await walletService.createLock(
         {
           name,
@@ -114,17 +112,20 @@ export const CreateLockSteps = () => {
       )
       return lockAddress
     },
-    {
-      onError: (error) => {
-        console.error(error)
-        ToastHelper.error('Unexpected issue on lock creation, please try again')
-      },
-    }
-  )
+    onError: (error) => {
+      console.error(error)
+      ToastHelper.error('Unexpected issue on lock creation, please try again')
+    },
+  })
+
+  const onSummarySubmit = async (data: LockFormProps) => {
+    const address = await createLockMutation.mutateAsync(data)
+    setLockAddress(address as string)
+  }
 
   const onBack = () => {
     if (!backUrl) {
-      router?.back()
+      router.back()
     } else {
       setStep(backUrl)
     }

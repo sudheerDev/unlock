@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Placeholder, ToggleSwitch } from '@unlock-protocol/ui'
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { ToastHelper } from '~/components/helpers/toast.helper'
 import { locksmith } from '~/config/locksmith'
 import { useSaveLockSettings } from '~/hooks/useLockSettings'
@@ -19,17 +19,18 @@ export default function CreditCardUnlockFee({
   const [unlockFeePaidByLockManager, setUnlockFeePaidByLockManager] =
     useState(false)
 
-  const { isLoading } = useQuery(
-    ['getLockSettings', lockAddress, network],
-    async () => {
+  const { data: lockSettings, isPending } = useQuery({
+    queryKey: ['getLockSettings', lockAddress, network],
+    queryFn: async () => {
       return (await locksmith.getLockSettings(network, lockAddress)).data
     },
-    {
-      onSuccess: ({ unlockFeeChargedToUser }) => {
-        setUnlockFeePaidByLockManager(!unlockFeeChargedToUser)
-      },
+  })
+
+  useEffect(() => {
+    if (lockSettings) {
+      setUnlockFeePaidByLockManager(!lockSettings.unlockFeeChargedToUser)
     }
-  )
+  }, [lockSettings])
 
   const saveSettingMutation = useSaveLockSettings()
 
@@ -42,7 +43,7 @@ export default function CreditCardUnlockFee({
     ToastHelper.success('Option successfully changed.')
   }
 
-  if (isLoading) {
+  if (isPending) {
     return (
       <Placeholder.Root>
         <Placeholder.Line />
@@ -59,7 +60,7 @@ export default function CreditCardUnlockFee({
             Fees paid by lock manager
           </span>
           <ToggleSwitch
-            disabled={disabled || saveSettingMutation.isLoading}
+            disabled={disabled || saveSettingMutation.isPending}
             enabled={unlockFeePaidByLockManager}
             setEnabled={setUnlockFeePaidByLockManager}
             onChange={(feePaidByLockManager: boolean) => {
@@ -68,7 +69,9 @@ export default function CreditCardUnlockFee({
           />
         </div>
         <div className="text-sm text-gray-700">
-          {`By default, the Unlock fee is applied on top of the lock's price. As a lock manager you can also chose to cover these fees on behalf of your users. In that case, your Stripe payments will be reduced.`}
+          By default, the Unlock fee is applied on top of the lock&apos;s price.
+          As a lock manager you can also chose to cover these fees on behalf of
+          your users. In that case, your Stripe payments will be reduced.
         </div>
       </div>
     </form>

@@ -91,6 +91,9 @@ export function ConfirmCrossChainPurchase({
       case 'ACTION_REJECTED':
         ToastHelper.error('Transaction rejected.')
         break
+      case 'INSUFFICIENT_FUNDS':
+        ToastHelper.error('Insufficient funds.')
+        break
       default:
         ToastHelper.error(message || error?.error?.message || error.message)
     }
@@ -124,7 +127,7 @@ export function ConfirmCrossChainPurchase({
           await approveTx.wait()
         }
       }
-      setButtonLabel(`Purchasing...`)
+      setButtonLabel('Purchasing...')
 
       // delete unwanted gas values
       delete route.tx.gasLimit
@@ -164,7 +167,7 @@ export function ConfirmCrossChainPurchase({
             <PricingData
               network={lockNetwork}
               lock={lock!}
-              pricingData={pricingData}
+              prices={pricingData.prices}
               payment={payment}
             />
           )}

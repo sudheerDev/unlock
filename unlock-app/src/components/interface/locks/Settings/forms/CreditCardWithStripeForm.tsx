@@ -16,7 +16,7 @@ import { locksmith } from '~/config/locksmith'
 import { useUSDPricing } from '~/hooks/useUSDPricing'
 import { useLockData } from '~/hooks/useLockData'
 import CreditCardCustomPrice from './CreditCardCustomPrice'
-import CreditCardUnlockFee from './CreditCardUnlockFee'
+import useKeyGranter from '~/hooks/useKeyGranter'
 
 enum ConnectStatus {
   CONNECTED = 1,
@@ -66,7 +66,7 @@ const DisconnectStripe = ({
       <div className="flex flex-col items-center gap-4 md:gap-8 md:flex-row">
         <Badge variant="green" className="justify-center w-full md:w-1/3">
           <div className="flex items-center gap-2">
-            <span>Card payments enabled</span>
+            <span className="whitespace-nowrap">Card payments enabled</span>
             <CheckCircleIcon />
           </div>
         </Badge>
@@ -100,13 +100,16 @@ const ConnectStripe = ({
 
   const {
     data: stripeConnections = [],
-    isLoading: isLoadingStripeConnections,
-  } = useQuery(['stripeConnections', account], async () => {
-    const response = await locksmith.getStripeConnections()
-    if (response.data.error) {
-      throw new Error(response.data.error)
-    }
-    return response.data.result || []
+    isPending: isLoadingStripeConnections,
+  } = useQuery({
+    queryKey: ['stripeConnections', account],
+    queryFn: async () => {
+      const response = await locksmith.getStripeConnections()
+      if (response.data.error) {
+        throw new Error(response.data.error)
+      }
+      return response.data.result || []
+    },
   })
 
   const checkIsKeyGranter = async (keyGranter: string) => {
@@ -114,28 +117,30 @@ const ConnectStripe = ({
   }
 
   const {
-    isLoading: isLoadingCheckGrantedStatus,
+    isPending: isLoadingCheckGrantedStatus,
     data: isGranted,
     refetch: refetchCheckKeyGranter,
-  } = useQuery(
-    ['checkIsKeyGranter', lockAddress, network, keyGranter],
-    async () => {
+  } = useQuery({
+    queryKey: ['checkIsKeyGranter', lockAddress, network, keyGranter],
+    queryFn: async () => {
       return checkIsKeyGranter(keyGranter)
-    }
-  )
+    },
+  })
 
-  const grantKeyGrantorRoleMutation = useMutation(async (): Promise<any> => {
-    const walletService = await getWalletService(network)
-    return walletService.addKeyGranter({
-      lockAddress,
-      keyGranter,
-    })
+  const grantKeyGrantorRoleMutation = useMutation({
+    mutationFn: async (): Promise<any> => {
+      const walletService = await getWalletService(network)
+      return walletService.addKeyGranter({
+        lockAddress,
+        keyGranter,
+      })
+    },
   })
 
   const onGrantKeyRole = async () => {
     const keyGrantPromise = grantKeyGrantorRoleMutation.mutateAsync()
     await ToastHelper.promise(keyGrantPromise, {
-      error: `Can't grant role, please try again.`,
+      error: "Can't grant role, please try again.",
       success: 'Key granted',
       loading: 'Allow key granting',
     })
@@ -147,9 +152,9 @@ const ConnectStripe = ({
   if (isLoading) {
     return (
       <Placeholder.Root>
-        <Placeholder.Line width="sm" />
-        <Placeholder.Line width="sm" />
-        <Placeholder.Line size="xl" width="sm" />
+        <Placeholder.Line />
+        <Placeholder.Line />
+        <Placeholder.Line size="xl" />
       </Placeholder.Root>
     )
   }
@@ -157,7 +162,7 @@ const ConnectStripe = ({
   return (
     <div className="flex flex-col gap-4">
       <SettingCardDetail
-        title="Enable Contract to Accept Credit Card"
+        title="Enable offchain payments"
         description={
           <div className="flex flex-col gap-2">
             <span>
@@ -165,12 +170,6 @@ const ConnectStripe = ({
                 Unlock Labs processes non-crypto payments via our Stripe
                 integration and includes fees that are applied on top of your
                 lock's key price.`}
-            </span>
-            <span>
-              If you enable credit card payments for your lock, your members
-              will usually be charged a higher amount than the amount for your
-              lock. The Unlock Labs fee is 10%, which must be added to the
-              Stripe fees and gas costs.
             </span>
             <span>
               For more details see{' '}
@@ -187,6 +186,7 @@ const ConnectStripe = ({
           </div>
         }
       />
+
       {isManager && (
         <div className="flex flex-col gap-3">
           {isGranted ? (
@@ -231,7 +231,7 @@ const ConnectStripe = ({
               variant="outlined-primary"
               className="w-full md:w-1/3"
               onClick={onGrantKeyRole}
-              disabled={grantKeyGrantorRoleMutation.isLoading}
+              disabled={grantKeyGrantorRoleMutation.isPending}
             >
               Accept
             </Button>
@@ -296,7 +296,7 @@ export const CreditCardWithStripeForm = ({
   disabled,
 }: CardPaymentProps) => {
   const {
-    isLoading,
+    isPending,
     data: stripeConnectionDetails,
     refetch: refetchStripeConnectionDetails,
   } = useGetLockStripeConnectionDetails({
@@ -304,20 +304,10 @@ export const CreditCardWithStripeForm = ({
     network,
   })
 
-  const { isLoading: isLoadingKeyGranter, data: keyGranter } = useQuery(
-    ['getKeyGranter', lockAddress, network],
-    () => {
-      return getKeyGranter()
-    }
-  )
   const stripeConnectionState = stripeConnectionDetails?.connected ?? 0
   const connectedStripeAccount = stripeConnectionDetails?.account
   const supportedCurrencies =
     stripeConnectionDetails?.countrySpec?.supported_payment_currencies ?? []
-
-  const getKeyGranter = async () => {
-    return (await locksmith.balance()).data[network].address
-  }
 
   const disconnectStipeMutation = useStripeDisconnect({
     lockAddress,
@@ -334,7 +324,7 @@ export const CreditCardWithStripeForm = ({
     lockAddress,
   })
 
-  const { isLoading: isLoadingPricing, data: fiatPricing } = useUSDPricing({
+  const { isPending: isLoadingPricing, data: fiatPricing } = useUSDPricing({
     network,
     lockAddress,
     currencyContractAddress: undefined,
@@ -344,7 +334,11 @@ export const CreditCardWithStripeForm = ({
 
   const isPricingLow = (fiatPricing?.usd?.amount ?? 0) < 0.5
 
-  const loading = isLoading || isLoadingKeyGranter || isLoadingPricing
+  const { data: keyGranter, isPending: isLoadingKeyGranter } = useKeyGranter({
+    network,
+  })
+
+  const loading = isPending || isLoadingKeyGranter || isLoadingPricing
 
   const onDisconnectStripe = async (event: any) => {
     event.preventDefault()
@@ -385,7 +379,7 @@ export const CreditCardWithStripeForm = ({
           network={network}
           isManager={isManager}
           keyGranter={keyGranter as string}
-          disabled={disabled || connectStripeMutation.isLoading}
+          disabled={disabled || connectStripeMutation.isPending}
         />
       )
     }
@@ -396,8 +390,8 @@ export const CreditCardWithStripeForm = ({
           isManager={isManager}
           disabled={
             disabled ||
-            connectStripeMutation.isLoading ||
-            disconnectStipeMutation.isLoading
+            connectStripeMutation.isPending ||
+            disconnectStipeMutation.isPending
           }
           onConnectStripe={onConnectStripe}
           onDisconnect={onDisconnectStripe}
@@ -412,32 +406,31 @@ export const CreditCardWithStripeForm = ({
           <DisconnectStripe
             isManager={isManager}
             onDisconnect={onDisconnectStripe}
-            disabled={disabled || disconnectStipeMutation.isLoading}
+            disabled={disabled || disconnectStipeMutation.isPending}
           />
+
           {connectedStripeAccount && (
-            <span>
+            <p className="text-sm text-gray-700">
               You will receive payments on your Stripe account{' '}
-              <code>{connectedStripeAccount.id}</code>
-            </span>
+              <code className="text-gray-600">{connectedStripeAccount.id}</code>
+              .
+            </p>
           )}
 
-          {isManager && (
-            <>
-              <CreditCardCustomPrice
+          <CreditCardCustomPrice
+            lockAddress={lockAddress}
+            network={network}
+            disabled={disabled}
+            lock={lock}
+            currencies={supportedCurrencies}
+            connectedStripeAccount={connectedStripeAccount}
+          />
+          {/* Disabled for now */}
+          {/* <CreditCardUnlockFee
                 lockAddress={lockAddress}
                 network={network}
                 disabled={disabled}
-                lock={lock}
-                currencies={supportedCurrencies}
-                connectedStripeAccount={connectedStripeAccount}
-              />
-              <CreditCardUnlockFee
-                lockAddress={lockAddress}
-                network={network}
-                disabled={disabled}
-              />
-            </>
-          )}
+              /> */}
         </div>
       )
     }
@@ -447,9 +440,9 @@ export const CreditCardWithStripeForm = ({
   if (loading)
     return (
       <Placeholder.Root>
-        <Placeholder.Line width="sm" />
-        <Placeholder.Line width="sm" />
-        <Placeholder.Line size="xl" width="sm" />
+        <Placeholder.Line />
+        <Placeholder.Line />
+        <Placeholder.Line size="xl" />
       </Placeholder.Root>
     )
 

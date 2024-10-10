@@ -5,8 +5,8 @@ import {
   Detail,
   PriceFormatter,
 } from '@unlock-protocol/ui'
-import ReactToPrint from 'react-to-print'
-import { useRef, useState } from 'react'
+import { useReactToPrint } from 'react-to-print'
+import { useRef, useState, useEffect } from 'react'
 import { PoweredByUnlock } from '../../checkout/PoweredByUnlock'
 import { addressMinify } from '~/utils/strings'
 import { UpdatePurchaserDrawer } from './UpdatePurchaserDrawer'
@@ -66,6 +66,7 @@ export const ReceiptBox = ({ lockAddress, hash, network }: ReceiptBoxProps) => {
   const { account } = useAuth()
 
   const [purchaserDrawer, setPurchaserDrawer] = useState(false)
+  const [receiptNumber, setReceiptNumber] = useState('')
   const web3Service = useWeb3Service()
   const { isManager } = useLockManager({
     lockAddress,
@@ -82,7 +83,7 @@ export const ReceiptBox = ({ lockAddress, hash, network }: ReceiptBoxProps) => {
     network,
   })
 
-  const { isLoading: isUpdatingReceipt } = useUpdateReceipt({
+  const { isPending: isUpdatingReceipt } = useUpdateReceipt({
     lockAddress,
     hash,
     network,
@@ -90,18 +91,16 @@ export const ReceiptBox = ({ lockAddress, hash, network }: ReceiptBoxProps) => {
 
   const { purchaser, supplier, receipt: receiptDetails } = receipt ?? {}
 
-  const { data: tokenSymbol } = useQuery(
-    ['getContractTokenSymbol', lockAddress, network],
-    async () => {
+  const { data: tokenSymbol } = useQuery({
+    queryKey: ['getContractTokenSymbol', lockAddress, network],
+    queryFn: async () => {
       return await web3Service.getTokenSymbol(
         receiptDetails?.tokenAddress,
         network
       )
     },
-    {
-      enabled: receiptDetails?.tokenAddress?.length > 0,
-    }
-  )
+    enabled: receiptDetails?.tokenAddress?.length > 0,
+  })
 
   // enable edit of purchaser only if purchaser match the account
   const isPurchaser =
@@ -119,13 +118,16 @@ export const ReceiptBox = ({ lockAddress, hash, network }: ReceiptBoxProps) => {
       ? dayjs.unix(receiptDetails.timestamp).format('D MMM YYYY') // example: 20 Jan 1977
       : ''
 
-  const receiptNumber = [
-    supplier?.prefix,
-    receiptDetails?.receiptNumber || '',
-    isCancelReceipt ? 'REFUND' : '',
-  ]
-    .filter((z: string) => !!z)
-    .join('-')
+  useEffect(() => {
+    const number = [
+      supplier?.prefix,
+      receiptDetails?.receiptNumber || '',
+      isCancelReceipt ? 'REFUND' : '',
+    ]
+      .filter((z: string) => !!z)
+      .join('-')
+    setReceiptNumber(number)
+  }, [supplier, receiptDetails, isCancelReceipt])
 
   const PurchaseDetails = () => {
     return (
@@ -140,7 +142,7 @@ export const ReceiptBox = ({ lockAddress, hash, network }: ReceiptBoxProps) => {
   const ReceiptDetails = () => {
     const symbol = tokenSymbol || networks[network]?.nativeCurrency?.symbol
 
-    const { data: receiptPrice } = useGetPrice({
+    const { data: receiptPrice, isLoading: isPriceLoading } = useGetPrice({
       network,
       amount: receiptDetails?.amountTransferred || 0,
       currencyContractAddress: receiptDetails?.tokenAddress,
@@ -150,8 +152,14 @@ export const ReceiptBox = ({ lockAddress, hash, network }: ReceiptBoxProps) => {
 
     const vatRatePercentage = (supplier?.vatBasisPointsRate ?? 0) / 100
     const subtotal =
-      (multiplier * receiptPrice?.total) / (1 + vatRatePercentage / 100)
+      (multiplier * (receiptPrice?.total ?? 0)) / (1 + vatRatePercentage / 100)
     const vatTotalInAmount = Number((subtotal * vatRatePercentage) / 100)
+
+    const LoadingPlaceholder = () => (
+      <Placeholder.Root>
+        <Placeholder.Line />
+      </Placeholder.Root>
+    )
 
     return (
       <div className="grid gap-2 mt-4">
@@ -173,20 +181,34 @@ export const ReceiptBox = ({ lockAddress, hash, network }: ReceiptBoxProps) => {
                 {vatRatePercentage > 0 && (
                   <>
                     <Detail label="Subtotal" inline>
-                      {`${subtotal.toFixed(2)} ${symbol}`}
+                      {isPriceLoading ? (
+                        <LoadingPlaceholder />
+                      ) : (
+                        `${subtotal.toFixed(2)} ${symbol}`
+                      )}
                     </Detail>
                     <Detail label={`VAT (${vatRatePercentage}%)`} inline>
-                      {vatTotalInAmount.toFixed(2)} {symbol}
+                      {isPriceLoading ? (
+                        <LoadingPlaceholder />
+                      ) : (
+                        `${vatTotalInAmount.toFixed(2)} ${symbol}`
+                      )}
                     </Detail>
                   </>
                 )}
                 <Detail label="TOTAL" labelSize="medium" inline>
-                  <PriceFormatter
-                    price={(
-                      multiplier * parseFloat(receiptPrice?.total)
-                    ).toString()}
-                  />{' '}
-                  {symbol}
+                  {isPriceLoading ? (
+                    <LoadingPlaceholder />
+                  ) : (
+                    <>
+                      <PriceFormatter
+                        price={(
+                          multiplier * parseFloat(receiptPrice?.total ?? '0')
+                        ).toString()}
+                      />{' '}
+                      {symbol}
+                    </>
+                  )}
                 </Detail>
               </div>
             </div>
@@ -255,6 +277,18 @@ export const ReceiptBox = ({ lockAddress, hash, network }: ReceiptBoxProps) => {
 
   const componentRef = useRef<any>()
 
+  const handlePrint = useReactToPrint({
+    documentTitle: `Receipt-${receiptNumber}`,
+    contentRef: componentRef,
+  })
+
+  const { data: receiptPrice, isLoading: isPriceLoading } = useGetPrice({
+    network,
+    amount: receiptDetails?.amountTransferred || 0,
+    currencyContractAddress: receiptDetails?.tokenAddress,
+    hash,
+  })
+
   if (isLoading) {
     return (
       <Placeholder.Root>
@@ -301,7 +335,7 @@ export const ReceiptBox = ({ lockAddress, hash, network }: ReceiptBoxProps) => {
                 >
                   <Link href={transactionUrl}>
                     <div className="flex items-center gap-2">
-                      <span>{`Transaction Hash:`} </span>
+                      <span>{'Transaction Hash:'} </span>
                       <span className="font-semibold text-brand-ui-primary">
                         {addressMinify(hash)}
                       </span>
@@ -329,14 +363,15 @@ export const ReceiptBox = ({ lockAddress, hash, network }: ReceiptBoxProps) => {
                 <PoweredByUnlock />
               </div>
             </div>
-            <ReactToPrint
-              trigger={() => (
-                <div className="flex justify-end w-full">
-                  <Button size="small">Print PDF</Button>
-                </div>
-              )}
-              content={() => componentRef.current}
-            />
+            <div className="flex justify-end w-full">
+              <Button
+                size="small"
+                onClick={() => handlePrint()}
+                disabled={isPriceLoading || !receiptPrice?.total}
+              >
+                Print PDF
+              </Button>
+            </div>
           </Disclosure>
         </div>
       </div>
